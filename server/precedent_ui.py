@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from server import queries
 from server.store import DEFAULT_HOME, Store
@@ -69,6 +69,26 @@ def create_app(home: pathlib.Path) -> FastAPI:
             }
             for _, node in ordered[:limit]
         ]
+
+    @app.get("/api/node/{node_id}")
+    def node(node_id: int) -> dict:
+        rows = store.query(queries.NODE_BY_ID, {"id": node_id})
+        if not rows:
+            raise HTTPException(404, f"no node {node_id} — the graph may have been rebuilt")
+        n = queries.node_out(rows[0]["n"])
+        degrees = [
+            {"type": r["type"], "dir": "out", "count": r["n"]}
+            for r in store.query(queries.DEGREE_OUT, {"id": node_id})
+        ] + [
+            {"type": r["type"], "dir": "in", "count": r["n"]}
+            for r in store.query(queries.DEGREE_IN, {"id": node_id})
+        ]
+        return {
+            **n,
+            "caption": queries.caption(n),
+            "key": queries.domain_key(n),
+            "degrees": sorted(degrees, key=lambda d: (d["count"], d["type"])),
+        }
 
     return app
 

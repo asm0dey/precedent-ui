@@ -44,3 +44,35 @@ def test_search_respects_limit(client):
 
 def test_search_with_empty_query_returns_nothing(client):
     assert client.get("/api/search", params={"q": "  "}).json() == []
+
+
+def _first_decision_id(client):
+    hits = client.get("/api/search", params={"q": "postgres"}).json()
+    return next(h["id"] for h in hits if h["labels"] == ["Decision"])
+
+
+def test_node_returns_props_and_caption(client):
+    nid = _first_decision_id(client)
+    body = client.get(f"/api/node/{nid}").json()
+    assert body["labels"] == ["Decision"]
+    assert body["props"]["rationale"]
+    assert body["caption"]
+
+
+def test_node_reports_the_stable_domain_key(client):
+    nid = _first_decision_id(client)
+    body = client.get(f"/api/node/{nid}").json()
+    assert body["key"]["field"] == "id"
+    assert body["key"]["value"]
+
+
+def test_node_degrees_are_split_by_type_and_direction(client):
+    nid = _first_decision_id(client)
+    degrees = client.get(f"/api/node/{nid}").json()["degrees"]
+    out = {(d["type"], d["dir"]): d["count"] for d in degrees}
+    assert out[("IN_PROJECT", "out")] == 1
+    assert out[("CHOSE", "out")] >= 1
+
+
+def test_node_404_for_a_missing_id(client):
+    assert client.get("/api/node/99999999").status_code == 404

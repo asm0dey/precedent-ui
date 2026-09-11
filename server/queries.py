@@ -84,6 +84,10 @@ DEGREE_FOR_IDS = (
     "MATCH (n)-[r]-() WHERE id(n) IN $ids RETURN id(n) AS id, count(r) AS degree"
 )
 
+NODE_BY_ID = "MATCH (n) WHERE id(n) = $id RETURN n AS n"
+DEGREE_OUT = "MATCH (n)-[r]->() WHERE id(n) = $id RETURN type(r) AS type, count(*) AS n"
+DEGREE_IN = "MATCH (n)<-[r]-() WHERE id(n) = $id RETURN type(r) AS type, count(*) AS n"
+
 
 def rank(node: dict, needle: str) -> int:
     cap = caption(node).lower()
@@ -102,3 +106,11 @@ def subtitle(node: dict) -> str:
     if label == "Decision":
         return f"{props.get('scope', '?')} · {props.get('status', '?')}"
     return label
+
+
+def domain_key(node: dict) -> dict | None:
+    label = node["labels"][0] if node["labels"] else ""
+    field = DOMAIN_KEY.get(label)
+    if field is None or field not in node["props"]:
+        return None
+    return {"field": field, "value": node["props"][field]}
