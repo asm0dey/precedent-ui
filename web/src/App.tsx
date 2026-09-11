@@ -154,11 +154,23 @@ export default function App() {
   }
 
   /** Hide everything except what's reachable from `id` — `survivors` with `id` as the
-   * sole root. Pinned nodes still survive. */
+   * sole root. Pinned nodes still survive.
+   *
+   * Unlike collapse, this drops nodes that ARE roots (every root not reachable from
+   * `id`), so it must prune the bookkeeping the same way `hide` does. A dropped id left
+   * in `roots` would be silently treated as asked-for-by-name the next time expansion
+   * reached it, making it uncollapsible. */
   function focus(id: number) {
     const present = graph.nodes();
     const keep = survivors(graphEdges(), present, new Set([String(id)]), pinned);
-    for (const n of present) if (!keep.has(n)) graph.dropNode(n);
+    for (const n of present) {
+      if (keep.has(n)) continue;
+      graph.dropNode(n);
+      roots.delete(n);
+      pinned.delete(n);
+      expandedAll.delete(Number(n));
+      if (selected === Number(n)) setSelected(null);
+    }
     setVersion((v) => v + 1);
   }
 
