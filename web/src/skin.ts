@@ -21,6 +21,11 @@ const LIGHT = {
   // Cypher console instead — see the spec's skin section. The token is kept so
   // the two palettes stay symmetric if that ever changes.
   warn: { conflict: "#dc2626", divergence: "#d97706", regret: "#b91c1c" },
+  // CHOSE and REJECTED are the graph's whole point — what was taken and what
+  // was turned down — so they are the one pair that must never read as the same
+  // grey line. Everything structural (IN_PROJECT, TAGGED, ABOUT, SUPERSEDES)
+  // stays neutral so the verdict edges carry the eye.
+  verdict: { CHOSE: "#1f9d63", REJECTED: "#c2410c" } as Record<string, string>,
 };
 
 const DARK: typeof LIGHT = {
@@ -40,6 +45,7 @@ const DARK: typeof LIGHT = {
   // rather than as invisible.
   statusAlpha: { active: 1, superseded: 0.5, regretted: 0.85 } as Record<string, number>,
   warn: { conflict: "#f87171", divergence: "#fbbf24", regret: "#f06a6a" },
+  verdict: { CHOSE: "#5bd39a", REJECTED: "#f08a4b" } as Record<string, string>,
 };
 
 export const tokens = (mode: Mode) => (mode === "dark" ? DARK : LIGHT);
@@ -76,13 +82,29 @@ export function nodePaint(t: Tokens, nodeLabel: string | undefined, status: stri
   return withAlpha(base, t.statusAlpha[status ?? "active"] ?? 1);
 }
 
-/** Edge types the precedent skin draws as warnings. */
+/**
+ * Edge colour by relationship.
+ *
+ * Three groups: the verdict edges (what a decision took and what it turned
+ * down), the warning edges (a deliberate divergence, a regret), and everything
+ * structural, which stays neutral.
+ */
 export const edgePaint = (t: Tokens, edgeType: string | undefined) =>
-  edgeType === "DIVERGES_FROM"
+  t.verdict[edgeType ?? ""] ??
+  (edgeType === "DIVERGES_FROM"
     ? t.warn.divergence
     : edgeType === "REGRETS"
       ? t.warn.regret
-      : t.edge;
+      : t.edge);
+
+/** Every relationship the skin gives a colour to, for the legend. */
+export const EDGE_LEGEND = (t: Tokens): { type: string; color: string; hint: string }[] => [
+  { type: "CHOSE", color: t.verdict.CHOSE, hint: "what the decision took" },
+  { type: "REJECTED", color: t.verdict.REJECTED, hint: "what it turned down" },
+  { type: "DIVERGES_FROM", color: t.warn.divergence, hint: "a knowing exception" },
+  { type: "REGRETS", color: t.warn.regret, hint: "judged a mistake later" },
+  { type: "IN_PROJECT · ABOUT · TAGGED · SUPERSEDES", color: t.edge, hint: "structure" },
+];
 
 export const CAPTION_FIELD: Record<string, string> = {
   Decision: "title",

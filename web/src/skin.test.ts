@@ -48,8 +48,27 @@ describe("edgePaint", () => {
     expect(edgePaint(light, "REGRETS")).toBe(light.warn.regret);
   });
 
-  it("leaves every other edge type the default edge colour", () => {
-    expect(edgePaint(light, "CHOSE")).toBe(light.edge);
-    expect(edgePaint(light, undefined)).toBe(light.edge);
+  it("separates what was chosen from what was rejected", () => {
+    // The graph's whole point. These two must never resolve to the same colour,
+    // and neither may fall back to the neutral structural grey.
+    expect(edgePaint(light, "CHOSE")).toBe(light.verdict.CHOSE);
+    expect(edgePaint(light, "REJECTED")).toBe(light.verdict.REJECTED);
+    expect(edgePaint(light, "CHOSE")).not.toBe(edgePaint(light, "REJECTED"));
+    expect(edgePaint(light, "CHOSE")).not.toBe(light.edge);
+    expect(edgePaint(light, "REJECTED")).not.toBe(light.edge);
+  });
+
+  it("leaves structural edges neutral", () => {
+    for (const type of ["IN_PROJECT", "TAGGED", "ABOUT", "SUPERSEDES", undefined]) {
+      expect(edgePaint(light, type)).toBe(light.edge);
+    }
+  });
+
+  it("gives both themes a distinct verdict pair", () => {
+    for (const t of [light, dark]) {
+      expect(t.verdict.CHOSE).not.toBe(t.verdict.REJECTED);
+      expect(t.verdict.CHOSE).not.toBe(t.edge);
+      expect(t.verdict.REJECTED).not.toBe(t.edge);
+    }
   });
 });

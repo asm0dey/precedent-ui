@@ -11,6 +11,7 @@ import { mergeInto } from "./graph/merge";
 import { planRefresh } from "./graph/refresh";
 import { Cypher } from "./panels/Cypher";
 import { Detail } from "./panels/Detail";
+import { Legend } from "./panels/Legend";
 import { Search } from "./panels/Search";
 import { useTheme, type Pref } from "./theme";
 
@@ -338,6 +339,7 @@ export default function App() {
       </header>
       <aside className="panel panel-search">
         <Search onPick={onPick} />
+        <Legend mode={mode} />
       </aside>
       <main className="panel-canvas">
         <Canvas
