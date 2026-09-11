@@ -39,3 +39,16 @@ def test_store_reflects_an_external_rebuild(store, store_home, tmp_path):
     build_store(store_home, shorter)
     after = store.query("MATCH (n) RETURN count(n) AS n")[0]["n"]
     assert after < before, "a long-lived handle must see an external rebuild"
+
+
+def test_store_queries_from_many_threads(store):
+    """graphdblite's Database is unsendable; a shared handle panics across threads."""
+    import concurrent.futures
+
+    def one() -> int:
+        return store.query("MATCH (n) RETURN count(n) AS n")[0]["n"]
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        counts = [f.result() for f in [pool.submit(one) for _ in range(32)]]
+
+    assert len(set(counts)) == 1 and counts[0] > 0

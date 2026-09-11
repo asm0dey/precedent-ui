@@ -29,12 +29,17 @@ def resolve_home(home: pathlib.Path) -> pathlib.Path:
 
 
 class Store:
-    """Lazy-opened graphdblite handle to a precedent graph."""
+    """Read-only graphdblite access to a precedent graph.
+
+    Opens a fresh handle per query (not cached) because graphdblite's Database
+    is unsendable (pyo3): it panics if touched from a thread other than the one
+    that created it. FastAPI runs sync routes in a threadpool, so a shared
+    cached handle breaks under any concurrency.
+    """
 
     def __init__(self, home: pathlib.Path) -> None:
         self.home = resolve_home(home)
         self.path = self.home / "graph.db"
-        self._db: Database | None = None
 
     def mtime(self) -> float:
         try:
@@ -42,21 +47,20 @@ class Store:
         except FileNotFoundError:
             return -1.0
 
-    def _handle(self) -> Database:
-        # No reopen-on-change: `precedent rebuild` rewrites graph.db in place and
-        # SQLite serves fresh pages to an existing connection, so a cached handle
-        # already reflects external writes. Measured: 66 nodes before a rebuild,
-        # 36 after, on the same handle.
-        if self._db is None:
-            if self.mtime() < 0:
-                raise FileNotFoundError(f"no graph at {self.path}")
-            self._db = Database(str(self.path))
-        return self._db
-
     def query(self, cypher: str, params: dict | None = None) -> list[dict]:
-        return self._handle().query(cypher, params or {})
+        # A fresh handle per query, on purpose. graphdblite's Database is
+        # unsendable (pyo3): it panics if touched from a thread other than the
+        # one that created it, and FastAPI runs sync routes in a threadpool.
+        # Measured cost is 0.93 ms per open+query+close against 0.57 ms warm.
+        if self.mtime() < 0:
+            raise FileNotFoundError(f"no graph at {self.path}")
+        db = Database(str(self.path))
+        try:
+            return db.query(cypher, params or {})
+        finally:
+            db.close()
 
     def close(self) -> None:
-        if self._db is not None:
-            self._db.close()
-            self._db = None
+        # No longer a cached handle to close. This method is retained for
+        # test fixture compatibility (tests/conftest.py calls it).
+        pass
