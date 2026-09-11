@@ -61,7 +61,10 @@ export default function App() {
   const expandedAll = useRef(new Set<number>()).current;
   const [hovered, setHovered] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
-  const [, setVersion] = useState(0); // bump to re-render after a merge
+  // Bumped after every merge: re-renders the panels AND drives the canvas's
+  // settle-after-change layout run, so a new node never lands at a random
+  // position and sits there until someone presses play.
+  const [version, setVersion] = useState(0);
   // Remaining count per "<id>-<type>-<dir>" expansion, for the "+N more" chip affordance.
   const [more, setMore] = useState<Record<string, number>>({});
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -165,8 +168,16 @@ export default function App() {
     const present = graph.nodes();
     const edges = graphEdges().filter((e) => e.src !== key && e.dst !== key);
     const keep = survivors(edges, present, roots, pinned);
-    for (const n of present) if (!keep.has(n) && n !== key) graph.dropNode(n);
+    const dropping = present.filter((n) => !keep.has(n) && n !== key);
+    for (const n of dropping) graph.dropNode(n);
     expandedAll.delete(id);
+
+    // Say so rather than appearing broken. Collapse only removes what would
+    // lose its path to a root, so on a densely connected node it legitimately
+    // removes nothing — and silently doing nothing reads as a bug.
+    if (dropping.length === 0) {
+      toast("nothing to collapse — everything here is reachable another way");
+    }
     setVersion((v) => v + 1);
   }
 
@@ -270,8 +281,14 @@ export default function App() {
     runCypher(DEFAULT_VIEW).then(({ rows }) => {
       const { nodes, edges } = cellsToGraph(rows);
       mergeInto(graph, nodes, edges, mode);
-      // Everything in the default view was asked for, so all of it is a root.
-      nodes.forEach((n) => roots.add(String(n.id)));
+      // Only the Projects anchor the opening view. Marking everything a root —
+      // which is what "asked for by name" meant when this view was a 20-node
+      // project map — makes collapse a no-op across the entire graph, because
+      // collapse only ever removes non-roots. Projects are what you navigate
+      // from; decisions, options and tags hang off them and stay removable.
+      nodes
+        .filter((n) => n.labels[0] === "Project")
+        .forEach((n) => roots.add(String(n.id)));
       setVersion((v) => v + 1);
     });
     // Load once on mount. Theme changes re-tint via the Canvas reducers, not a re-fetch.
@@ -333,6 +350,7 @@ export default function App() {
           graph={graph}
           mode={mode}
           hovered={hovered}
+          version={version}
           onSelect={setSelected}
           onDoubleClick={onDoubleClick}
           onContextMenu={onContextMenu}

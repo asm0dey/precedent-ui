@@ -7,7 +7,10 @@ import {
   useRegisterEvents,
 } from "@react-sigma/core";
 import "@react-sigma/core/lib/style.css";
-import { LayoutForceAtlas2Control } from "@react-sigma/layout-forceatlas2";
+import {
+  LayoutForceAtlas2Control,
+  useWorkerLayoutForceAtlas2,
+} from "@react-sigma/layout-forceatlas2";
 import { MiniMap } from "@react-sigma/minimap";
 import Graph from "graphology";
 import { useEffect, useRef } from "react";
@@ -63,6 +66,31 @@ function Reducers({ mode, hovered }: { mode: Mode; hovered: string | null }) {
   return null;
 }
 
+/**
+ * Runs ForceAtlas2 for a moment whenever the working set changes.
+ *
+ * Without this the layout only ran once at mount, so every search hit and every
+ * expansion landed at a random position and stayed there until you found the
+ * play button in the corner and pressed it yourself. Merging is the whole
+ * interaction here, so settling after a merge is the tool's job, not yours.
+ *
+ * Pinned nodes carry `fixed: true` and are left where you put them.
+ */
+function AutoLayout({ version }: { version: number }) {
+  const { start, stop } = useWorkerLayoutForceAtlas2({ settings: { slowDown: 10 } });
+
+  useEffect(() => {
+    start();
+    const timer = setTimeout(stop, 1500);
+    return () => {
+      clearTimeout(timer);
+      stop();
+    };
+  }, [version, start, stop]);
+
+  return null;
+}
+
 export type CanvasHandlers = {
   onSelect: (id: number) => void;
   onDoubleClick: (id: number) => void;
@@ -98,6 +126,9 @@ function Events({ onSelect, onDoubleClick, onContextMenu, onHover, onPin }: Canv
         // calls preventDefault on it — so without this the browser's native
         // menu opens on top of ours (visible in Firefox in particular).
         e.event.original.preventDefault();
+        // Belt and braces: whatever armed a drag, opening the menu ends it.
+        dragged.current = null;
+        moved.current = false;
         // e.event.x/y are container-relative; the menu now positions with a fixed
         // viewport coordinate (it also opens from the Detail panel's actions button,
         // outside the canvas container), so convert to viewport space here.
@@ -107,6 +138,12 @@ function Events({ onSelect, onDoubleClick, onContextMenu, onHover, onPin }: Canv
       enterNode: (e) => onHover(e.node),
       leaveNode: () => onHover(null),
       downNode: (e) => {
+        // Primary button only. A right-click also raises downNode, and the
+        // context menu that follows swallows the mouseup — so the node stayed
+        // armed and the next mouse move dragged it around. Touch events carry
+        // no `button`; those are always a primary interaction.
+        const src = e.event.original;
+        if ("button" in src && src.button !== 0) return;
         dragged.current = e.node;
         moved.current = false;
       },
@@ -136,6 +173,7 @@ export function Canvas({
   graph,
   mode,
   hovered,
+  version,
   onSelect,
   onDoubleClick,
   onContextMenu,
@@ -145,6 +183,8 @@ export function Canvas({
   graph: Graph;
   mode: Mode;
   hovered: string | null;
+  /** Bumped on every merge; drives the settle-after-change layout run. */
+  version: number;
 } & CanvasHandlers) {
   const t = tokens(mode);
   return (
@@ -154,6 +194,7 @@ export function Canvas({
       settings={{ allowInvalidContainer: true, defaultEdgeType: "arrow", labelDensity: 0.2 }}
     >
       <Reducers mode={mode} hovered={hovered} />
+      <AutoLayout version={version} />
       <Events
         onSelect={onSelect}
         onDoubleClick={onDoubleClick}
@@ -164,7 +205,7 @@ export function Canvas({
       <ControlsContainer position="bottom-right">
         <ZoomControl />
         <FullScreenControl />
-        <LayoutForceAtlas2Control autoRunFor={1000} />
+        <LayoutForceAtlas2Control />
       </ControlsContainer>
       <ControlsContainer position="bottom-left">
         <MiniMap width="120px" height="120px" />
