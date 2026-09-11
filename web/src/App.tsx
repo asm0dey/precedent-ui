@@ -26,6 +26,7 @@ type Menu = {
   nodeId: number;
   degrees: Degree[];
   key: { field: string; value: string } | null;
+  caption: string;
 };
 
 export default function App() {
@@ -140,7 +141,7 @@ export default function App() {
 
   async function onContextMenu(id: number, x: number, y: number) {
     const n = await getNode(id);
-    setMenu({ at: { x, y }, nodeId: id, degrees: n.degrees, key: n.key });
+    setMenu({ at: { x, y }, nodeId: id, degrees: n.degrees, key: n.key, caption: n.caption });
   }
 
   function onMenuAction(action: ContextMenuAction) {
@@ -235,6 +236,7 @@ export default function App() {
           onOpenMenu={(x, y) => {
             if (selected !== null) onContextMenu(selected, x, y);
           }}
+          menuOpen={menu !== null && menu.nodeId === selected}
         />
       </aside>
       <footer className="panel-cypher">{/* Task 13: <Cypher /> */}</footer>
@@ -244,6 +246,7 @@ export default function App() {
         at={menu?.at ?? null}
         nodeId={menu?.nodeId ?? -1}
         degrees={menu?.degrees ?? []}
+        caption={menu?.caption ?? ""}
         onAction={onMenuAction}
         onClose={() => setMenu(null)}
       />

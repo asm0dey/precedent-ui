@@ -6,11 +6,13 @@ export function Detail({
   more,
   onExpand,
   onOpenMenu,
+  menuOpen,
 }: {
   nodeId: number | null;
   more: Record<string, number>;
   onExpand: (type: string, dir: "out" | "in", offset?: number) => void;
   onOpenMenu: (x: number, y: number) => void;
+  menuOpen: boolean;
 }) {
   const [n, setN] = useState<NodeDetail | null>(null);
 
@@ -45,6 +47,8 @@ export function Detail({
         <button
           type="button"
           className="detail-actions-btn"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
             onOpenMenu(r.left, r.bottom);

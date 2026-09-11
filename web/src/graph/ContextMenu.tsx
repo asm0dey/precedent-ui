@@ -48,12 +48,14 @@ export function ContextMenu({
   at,
   nodeId,
   degrees,
+  caption,
   onAction,
   onClose,
 }: {
   at: { x: number; y: number } | null;
   nodeId: number;
   degrees: Degree[];
+  caption: string;
   onAction: (action: ContextMenuAction) => void;
   onClose: () => void;
 }) {
@@ -113,7 +115,7 @@ export function ContextMenu({
       className="context-menu"
       style={{ left: at.x, top: at.y }}
       role="menu"
-      aria-label="Node actions"
+      aria-label={`Actions for ${caption}`}
       onMouseLeave={onClose}
       onKeyDown={onKeyDown}
       data-node-id={nodeId}
