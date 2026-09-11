@@ -11,7 +11,8 @@ import { LayoutForceAtlas2Control } from "@react-sigma/layout-forceatlas2";
 import { MiniMap } from "@react-sigma/minimap";
 import Graph from "graphology";
 import { useEffect, useRef } from "react";
-import { edgePaint, nodePaint, tokens, type Mode } from "../skin";
+import { drawDiscNodeHover } from "sigma/rendering";
+import { HOVER_LABEL_INK, edgePaint, nodePaint, tokens, type Mode } from "../skin";
 
 /** Theme, status and hover all live in the reducers, so neither a theme flip nor
  * the precedent skin ever rewrites graph attributes — they only read them. */
@@ -19,6 +20,19 @@ function Reducers({ mode, hovered }: { mode: Mode; hovered: string | null }) {
   const sigma = useSigma();
   useEffect(() => {
     const t = tokens(mode);
+
+    // Label rendering is sigma's, not the reducers': it paints node and edge
+    // labels with its own default of #000, which is unreadable on the dark
+    // canvas. Set it here so it flips with the theme like everything else.
+    sigma.setSetting("labelColor", { color: t.text });
+    sigma.setSetting("edgeLabelColor", { color: t.text });
+    sigma.setSetting("defaultDrawNodeHover", (context, data, settings) =>
+      drawDiscNodeHover(context, data, {
+        ...settings,
+        labelColor: { color: HOVER_LABEL_INK },
+      }),
+    );
+
     sigma.setSetting("nodeReducer", (node, data) => {
       const base = {
         ...data,

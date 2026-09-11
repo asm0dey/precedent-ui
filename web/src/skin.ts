@@ -43,6 +43,16 @@ const DARK: typeof LIGHT = {
 };
 
 export const tokens = (mode: Mode) => (mode === "dark" ? DARK : LIGHT);
+
+/**
+ * Ink for the label sigma draws on a hovered node.
+ *
+ * Not theme-dependent on purpose: sigma's hover renderer fills that label's
+ * background with a hardcoded `#FFF` and exposes no setting for it, so the
+ * text sitting on it has to stay dark in both themes. Theming it alongside
+ * the other labels would make hovered labels white-on-white.
+ */
+export const HOVER_LABEL_INK = LIGHT.text;
 export type Tokens = typeof LIGHT;
 
 /** `#rrggbb` + alpha → the `rgba(...)` form sigma's colour parser accepts.
