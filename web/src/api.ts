@@ -8,9 +8,30 @@ export type NodeDetail = GNode & {
   degrees: Degree[];
 };
 
+/** A non-ok HTTP response, carrying the status so callers can tell the
+ * statuses apart. 404 means "this node is gone"; 503 means "the store is
+ * missing or busy" and 5xx/network failures mean "ask again later" — treating
+ * them alike would let one blip delete a working set the user assembled by
+ * hand. */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, body: string) {
+    super(`${status} ${body}`);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/** True only for the one failure that means the node no longer exists. A
+ * rejection that is not an ApiError at all (a dropped connection surfaces as
+ * fetch's TypeError) is emphatically not that. */
+export const isNotFound = (reason: unknown) =>
+  reason instanceof ApiError && reason.status === 404;
+
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
-  if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+  if (!r.ok) throw new ApiError(r.status, await r.text());
   return r.json() as Promise<T>;
 }
 
@@ -20,7 +41,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+  if (!r.ok) throw new ApiError(r.status, await r.text());
   return r.json() as Promise<T>;
 }
 

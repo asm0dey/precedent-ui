@@ -8,6 +8,7 @@ import { Canvas } from "./graph/Canvas";
 import { survivors } from "./graph/collapse";
 import { ContextMenu, type ContextMenuAction } from "./graph/ContextMenu";
 import { mergeInto } from "./graph/merge";
+import { planRefresh } from "./graph/refresh";
 import { Cypher } from "./panels/Cypher";
 import { Detail } from "./panels/Detail";
 import { Search } from "./panels/Search";
@@ -68,29 +69,38 @@ export default function App() {
   /** User-initiated: re-fetches every loaded node, drops any that now 404 (a
    * rebuild reassigns `__id`s), and re-derives edges among the survivors.
    * Never auto-expands — the working set stays exactly what the user had,
-   * minus whatever no longer exists. */
+   * minus whatever no longer exists.
+   *
+   * A node is dropped ONLY on a 404. Any other failure (a 503 while the store
+   * is missing or busy, a 5xx, a dropped connection) leaves the node, its root
+   * status and its pin exactly as they were — see graph/refresh.ts. */
   async function refreshGraph() {
     const ids = graph.nodes().map(Number);
-    const results = await Promise.allSettled(ids.map((id) => getNode(id)));
-    let rebuilt = false;
-    results.forEach((res, i) => {
-      const id = ids[i];
-      if (res.status === "fulfilled") {
-        mergeInto(graph, [res.value], [], mode);
-      } else {
-        rebuilt = true;
-        const key = String(id);
-        if (graph.hasNode(key)) graph.dropNode(key);
-        roots.delete(key);
-        pinned.delete(key);
-        expanded.delete(id);
-        if (selected === id) setSelected(null);
-      }
-    });
-    await completeEdges();
+    const { fresh, gone, unreachable } = planRefresh(
+      ids,
+      await Promise.allSettled(ids.map((id) => getNode(id))),
+    );
+    mergeInto(graph, fresh, [], mode);
+    for (const id of gone) {
+      const key = String(id);
+      if (graph.hasNode(key)) graph.dropNode(key);
+      roots.delete(key);
+      pinned.delete(key);
+      expanded.delete(id);
+      if (selected === id) setSelected(null);
+    }
+    let edgesFailed = false;
+    try {
+      await completeEdges();
+    } catch {
+      edgesFailed = true;
+      setVersion((v) => v + 1);
+    }
     setChanged(false);
     setRefreshedAt((v) => v + 1);
-    if (rebuilt) toast("graph was rebuilt — some nodes no longer exist");
+    if (gone.length) toast("graph was rebuilt — some nodes no longer exist");
+    else if (unreachable.length || edgesFailed)
+      toast("refresh incomplete — the server did not answer; nothing was removed");
   }
 
   async function expandOne(id: number, type: string, dir: "out" | "in", offset = 0) {
