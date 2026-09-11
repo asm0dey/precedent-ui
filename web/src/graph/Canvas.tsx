@@ -93,6 +93,11 @@ function Events({ onSelect, onDoubleClick, onContextMenu, onHover, onPin }: Canv
       doubleClickNode: (e) => onDoubleClick(Number(e.node)),
       rightClickNode: (e) => {
         e.preventSigmaDefault();
+        // preventSigmaDefault only stops sigma's own handling. Sigma binds a
+        // `contextmenu` listener and, unlike its double-click handler, never
+        // calls preventDefault on it — so without this the browser's native
+        // menu opens on top of ours (visible in Firefox in particular).
+        e.event.original.preventDefault();
         // e.event.x/y are container-relative; the menu now positions with a fixed
         // viewport coordinate (it also opens from the Detail panel's actions button,
         // outside the canvas container), so convert to viewport space here.
