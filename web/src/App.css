@@ -408,6 +408,32 @@
   letter-spacing: 0.04em;
 }
 
+.stream-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  font-size: 12px;
+  color: var(--warn);
+}
+
+.stream-badge button {
+  padding: 4px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--warn);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.stream-badge button:hover,
+.stream-badge button:focus-visible {
+  background: var(--warn);
+  color: #fff;
+}
+
 .theme-toggle {
   display: flex;
   gap: 4px;

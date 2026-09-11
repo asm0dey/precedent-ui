@@ -3,12 +3,16 @@ import { getNode, type NodeDetail } from "../api";
 
 export function Detail({
   nodeId,
+  refreshedAt,
   more,
   onExpand,
   onOpenMenu,
   menuOpen,
 }: {
   nodeId: number | null;
+  // Bumped by App after a graph refresh, so this re-fetches fresh degrees
+  // for the still-selected node even though `nodeId` itself didn't change.
+  refreshedAt: number;
   more: Record<string, number>;
   onExpand: (type: string, dir: "out" | "in", offset?: number) => void;
   onOpenMenu: (x: number, y: number) => void;
@@ -32,7 +36,7 @@ export function Detail({
     return () => {
       live = false;
     };
-  }, [nodeId]);
+  }, [nodeId, refreshedAt]);
 
   if (nodeId === null || !n) return <div className="detail-empty">nothing selected</div>;
 

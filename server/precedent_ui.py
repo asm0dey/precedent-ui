@@ -194,6 +194,15 @@ def create_app(home: pathlib.Path) -> FastAPI:
     async def stream() -> StreamingResponse:
         return StreamingResponse(mtime_events(store), media_type="text/event-stream")
 
+    # Mounted LAST, after every /api route: StaticFiles(html=True) serves a
+    # catch-all for unmatched paths, which would shadow the routes above if
+    # mounted earlier.
+    dist = pathlib.Path(__file__).parent.parent / "web" / "dist"
+    if dist.is_dir():
+        from fastapi.staticfiles import StaticFiles
+
+        app.mount("/", StaticFiles(directory=dist, html=True), name="web")
+
     return app
 
 

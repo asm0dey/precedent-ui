@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import pathlib
 
 from graphdblite import Database
@@ -54,6 +55,15 @@ class Store:
         # Measured cost is 0.93 ms per open+query+close against 0.57 ms warm.
         if self.mtime() < 0:
             raise FileNotFoundError(f"no graph at {self.path}")
+        # graphdblite touches graph.db's mtime on open even for a pure read
+        # (measured: every open+query+close bumps it, with no write issued).
+        # /api/stream's change signal is this same mtime, so left alone every
+        # read through this class would look like an external write and fire
+        # a false "graph changed" badge on ordinary browsing. Snapshot the
+        # times beforehand and restore them after, so only a real external
+        # write (e.g. `precedent.py record`/`rebuild`) moves the mtime that
+        # the watcher sees.
+        st = self.path.stat()
         db = Database(str(self.path))
         try:
             return db.query(cypher, params or {})
@@ -64,6 +74,7 @@ class Store:
             # (even closed) handle is finalised on whatever thread GC runs on,
             # where pyo3 raises because Database is unsendable.
             del db
+            os.utime(self.path, (st.st_atime, st.st_mtime))
 
     def close(self) -> None:
         # No longer a cached handle to close. This method is retained for

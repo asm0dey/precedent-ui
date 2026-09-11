@@ -45,6 +45,10 @@ export default function App() {
   const [more, setMore] = useState<Record<string, number>>({});
   const [menu, setMenu] = useState<Menu | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const mtimeRef = useRef<number | null>(null);
+  const [changed, setChanged] = useState(false);
+  // Bumped after a refresh so Detail re-fetches degrees for the still-selected node.
+  const [refreshedAt, setRefreshedAt] = useState(0);
 
   function toast(msg: string) {
     setToastMsg(msg);
@@ -56,6 +60,34 @@ export default function App() {
     const { edges } = await edgesBetween(ids);
     mergeInto(graph, [], edges, mode);
     setVersion((v) => v + 1);
+  }
+
+  /** User-initiated: re-fetches every loaded node, drops any that now 404 (a
+   * rebuild reassigns `__id`s), and re-derives edges among the survivors.
+   * Never auto-expands — the working set stays exactly what the user had,
+   * minus whatever no longer exists. */
+  async function refreshGraph() {
+    const ids = graph.nodes().map(Number);
+    const results = await Promise.allSettled(ids.map((id) => getNode(id)));
+    let rebuilt = false;
+    results.forEach((res, i) => {
+      const id = ids[i];
+      if (res.status === "fulfilled") {
+        mergeInto(graph, [res.value], [], mode);
+      } else {
+        rebuilt = true;
+        const key = String(id);
+        if (graph.hasNode(key)) graph.dropNode(key);
+        roots.delete(key);
+        pinned.delete(key);
+        expanded.delete(id);
+        if (selected === id) setSelected(null);
+      }
+    });
+    await completeEdges();
+    setChanged(false);
+    setRefreshedAt((v) => v + 1);
+    if (rebuilt) toast("graph was rebuilt — some nodes no longer exist");
   }
 
   async function expandOne(id: number, type: string, dir: "out" | "in", offset = 0) {
@@ -203,10 +235,40 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const es = new EventSource("/api/stream");
+    let first = true;
+    es.onmessage = (e) => {
+      const { mtime } = JSON.parse(e.data);
+      // The stream emits once immediately on connect so a client learns the
+      // current value — that first frame is not a change.
+      if (first) {
+        first = false;
+        mtimeRef.current = mtime;
+        return;
+      }
+      if (mtime !== mtimeRef.current) {
+        mtimeRef.current = mtime;
+        setChanged(true); // badge only — refresh is user-initiated
+      }
+    };
+    return () => es.close();
+  }, []);
+
   return (
     <div className="app">
       <header className="app-header">
         <h1>precedent</h1>
+        <div className="stream-badge" role="status" aria-live="polite">
+          {changed && (
+            <>
+              <span>graph changed</span>
+              <button type="button" onClick={refreshGraph}>
+                refresh
+              </button>
+            </>
+          )}
+        </div>
         <div className="theme-toggle" role="group" aria-label="Theme">
           {THEME_OPTIONS.map((opt) => (
             <button
@@ -239,6 +301,7 @@ export default function App() {
       <aside className="panel panel-detail">
         <Detail
           nodeId={selected}
+          refreshedAt={refreshedAt}
           more={more}
           onExpand={(type, dir, offset) => {
             if (selected !== null) expandOne(selected, type, dir, offset);

@@ -41,6 +41,19 @@ def test_store_reflects_an_external_rebuild(store, store_home, tmp_path):
     assert after < before, "a long-lived handle must see an external rebuild"
 
 
+def test_store_query_does_not_perturb_mtime(store):
+    """graphdblite touches graph.db's mtime on open even for a pure read.
+
+    /api/stream's change signal is this same mtime (server/precedent_ui.py's
+    mtime_events), so an unguarded read would look identical to an external
+    write and fire a false "graph changed" badge on ordinary browsing.
+    """
+    before = store.mtime()
+    for _ in range(3):
+        store.query("MATCH (n) RETURN count(n) AS n")
+    assert store.mtime() == before
+
+
 def test_store_queries_from_many_threads(store):
     """graphdblite's Database is unsendable; a shared handle panics across threads."""
     import concurrent.futures

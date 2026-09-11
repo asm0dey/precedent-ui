@@ -223,3 +223,27 @@ def test_mtime_events_emits_immediately_then_on_change(store, store_home, tmp_pa
     assert second.startswith("data: ") and second.endswith("\n\n")
     second_mtime = json.loads(second.removeprefix("data: "))["mtime"]
     assert second_mtime != first_mtime, "a rebuilt graph must produce a new frame"
+
+
+def test_mtime_events_emits_only_on_change(store):
+    """A generator missing its `if now != last` guard would still pass the
+    emits-immediately-then-on-change test above, and in the UI that means a
+    "graph changed" badge flashing every second. Drive the generator across
+    several intervals with no change and assert no further frame arrives.
+    """
+    import asyncio
+
+    import pytest
+
+    from server.precedent_ui import mtime_events
+
+    async def scenario() -> None:
+        gen = mtime_events(store, interval=0.01)
+        await anext(gen)  # the immediate first frame
+
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(anext(gen), timeout=0.2)
+
+        await gen.aclose()
+
+    asyncio.run(scenario())
