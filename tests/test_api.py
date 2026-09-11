@@ -187,16 +187,39 @@ def test_cypher_caps_rows_and_says_so(client):
     assert body["truncated"] is True
 
 
-def test_stream_emits_the_current_mtime(client):
-    """SSE stream test - validated manually (TestClient.stream hangs on infinite generators).
+def test_mtime_events_emits_immediately_then_on_change(store, store_home, tmp_path):
+    """Direct test of the SSE frame generator - no HTTP, no hang.
 
-    Run manually: uv run python -m server.precedent_ui --port 8971 &
-                  sleep 1
-                  curl -sN localhost:8971/api/stream | head -1
-                  kill %1
+    Verifies that the generator:
+    1. Emits immediately on first call (even before any change)
+    2. Emits a new frame only when mtime changes (not on every poll)
+    3. Frame format is correct SSE (data: JSON\n\n)
     """
-    # TestClient.stream() with an infinite async generator causes the test
-    # to hang indefinitely, likely due to how httpx handles the connection
-    # lifecycle with never-closing streams. Manual testing confirms the
-    # endpoint works correctly. See task-7-report.md for manual verification.
-    pass
+    import asyncio
+    import json
+
+    from server.precedent_ui import mtime_events
+    from tests.conftest import FIXTURE, build_store
+
+    async def scenario() -> tuple[str, str]:
+        gen = mtime_events(store, interval=0.01)
+        first = await anext(gen)
+
+        # Rebuild the graph to change its mtime
+        shorter = tmp_path / "shorter.jsonl"
+        shorter.write_text("".join(FIXTURE.read_text().splitlines(keepends=True)[:6]))
+        build_store(store_home, shorter)
+
+        second = await anext(gen)
+        await gen.aclose()
+        return first, second
+
+    first, second = asyncio.run(asyncio.wait_for(scenario(), timeout=10))
+
+    assert first.startswith("data: ") and first.endswith("\n\n")
+    first_mtime = json.loads(first.removeprefix("data: "))["mtime"]
+    assert first_mtime > 0
+
+    assert second.startswith("data: ") and second.endswith("\n\n")
+    second_mtime = json.loads(second.removeprefix("data: "))["mtime"]
+    assert second_mtime != first_mtime, "a rebuilt graph must produce a new frame"

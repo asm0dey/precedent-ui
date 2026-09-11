@@ -7,6 +7,7 @@ import asyncio
 import json
 import pathlib
 import re
+from collections.abc import AsyncIterator
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -32,6 +33,22 @@ class CypherIn(BaseModel):
     query: str
     params: dict = {}
     max_rows: int = MAX_ROWS
+
+
+async def mtime_events(store: Store, interval: float = 1.0) -> AsyncIterator[str]:
+    """Yield an SSE frame whenever graph.db's mtime changes.
+
+    Module level and interval-injectable so it can be tested directly:
+    an infinite generator can never be read through TestClient, which
+    waits for the response to complete.
+    """
+    last = None
+    while True:
+        now = store.mtime()
+        if now != last:
+            last = now
+            yield f"data: {json.dumps({'mtime': now})}\n\n"
+        await asyncio.sleep(interval)
 
 
 def create_app(home: pathlib.Path) -> FastAPI:
@@ -175,16 +192,7 @@ def create_app(home: pathlib.Path) -> FastAPI:
 
     @app.get("/api/stream")
     async def stream() -> StreamingResponse:
-        async def events():
-            last = None
-            while True:
-                now = store.mtime()
-                if now != last:
-                    last = now
-                    yield f"data: {json.dumps({'mtime': now})}\n\n"
-                await asyncio.sleep(1.0)
-
-        return StreamingResponse(events(), media_type="text/event-stream")
+        return StreamingResponse(mtime_events(store), media_type="text/event-stream")
 
     return app
 
