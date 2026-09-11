@@ -99,3 +99,16 @@ uv run pytest -q         # Python test suite
 cd web && bun run test    # frontend unit tests
 cd web && bun run build   # the only real type check — tsc --noEmit alone checks zero files here
 ```
+
+Most Python tests build a real temp `graph.db` by replaying
+`tests/fixtures/journal.jsonl` through precedent's own CLI, so they need that
+CLI on disk. It defaults to
+`~/work_self/my-decisions/precedent/scripts/precedent.py`; point
+`PRECEDENT_CLI` at your own checkout to run them elsewhere:
+
+```bash
+PRECEDENT_CLI=/path/to/precedent.py uv run pytest -q
+```
+
+Without it those tests skip (with that message) rather than erroring;
+`tests/test_queries.py` is pure and runs regardless.
