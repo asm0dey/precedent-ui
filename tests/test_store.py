@@ -4,7 +4,7 @@ import pathlib
 import pytest
 
 from server.store import Store, resolve_home
-from tests.conftest import build_store
+from tests.conftest import FIXTURE, build_store
 
 
 def test_resolve_home_without_pointer_returns_input(tmp_path):
@@ -32,8 +32,10 @@ def test_store_queries_the_real_graph(store):
     assert rows[0]["n"] > 0
 
 
-def test_store_reopens_after_rebuild_replaces_the_file(store, store_home):
+def test_store_reflects_an_external_rebuild(store, store_home, tmp_path):
     before = store.query("MATCH (n) RETURN count(n) AS n")[0]["n"]
-    build_store(store_home)  # rebuild writes a fresh graph.db
+    shorter = tmp_path / "shorter.jsonl"
+    shorter.write_text("".join(FIXTURE.read_text().splitlines(keepends=True)[:6]))
+    build_store(store_home, shorter)
     after = store.query("MATCH (n) RETURN count(n) AS n")[0]["n"]
-    assert after == before
+    assert after < before, "a long-lived handle must see an external rebuild"

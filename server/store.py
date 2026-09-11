@@ -29,13 +29,12 @@ def resolve_home(home: pathlib.Path) -> pathlib.Path:
 
 
 class Store:
-    """One graphdblite handle, reopened when the file underneath is replaced."""
+    """Lazy-opened graphdblite handle to a precedent graph."""
 
     def __init__(self, home: pathlib.Path) -> None:
         self.home = resolve_home(home)
         self.path = self.home / "graph.db"
         self._db: Database | None = None
-        self._opened_at: float = -1.0
 
     def mtime(self) -> float:
         try:
@@ -44,13 +43,14 @@ class Store:
             return -1.0
 
     def _handle(self) -> Database:
-        now = self.mtime()
-        if now < 0:
-            raise FileNotFoundError(f"no graph at {self.path}")
-        if self._db is None or now != self._opened_at:
-            self.close()
+        # No reopen-on-change: `precedent rebuild` rewrites graph.db in place and
+        # SQLite serves fresh pages to an existing connection, so a cached handle
+        # already reflects external writes. Measured: 66 nodes before a rebuild,
+        # 36 after, on the same handle.
+        if self._db is None:
+            if self.mtime() < 0:
+                raise FileNotFoundError(f"no graph at {self.path}")
             self._db = Database(str(self.path))
-            self._opened_at = now
         return self._db
 
     def query(self, cypher: str, params: dict | None = None) -> list[dict]:
