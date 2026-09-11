@@ -1,7 +1,8 @@
 # precedent-ui — design
 
 Date: 2026-09-11
-Status: approved, not yet implemented
+Status: approved; implemented on `feat/precedent-ui`. Amendments made during
+the final review pass are marked where they occur.
 
 ## What this is
 
@@ -59,8 +60,13 @@ knew to ask. Seeing the graph answers the ones you did not.
   `[2, 3]` with no type marker. Indistinguishable from a list of integers, so
   v1 renders paths as scalars rather than guessing.
 
-- **`graph.db` is a single SQLite file with no `-wal` sidecar,** so its mtime is
-  a sound change signal.
+- **`graph.db`'s mtime is NOT a sound change signal.** It is a single SQLite
+  file with no `-wal` sidecar, which is why it looked like one — but graphdblite
+  bumps its mtime on every open, including a pure read, and this server opens a
+  fresh handle per query. Measured: five plain reads left `journal.jsonl`
+  untouched and moved `graph.db` every time. Change detection therefore watches
+  `journal.jsonl` — precedent's own append-only source of truth, which this
+  process never opens — as `(mtime_ns, size)`.
 
 - **`__id` is engine-assigned and session-scoped.** `precedent rebuild` replays
   the journal into a fresh graph and renumbers everything. Every node also
@@ -75,12 +81,30 @@ boundary is the loopback socket, not any individual endpoint. That is only
 acceptable because of what the engine cannot do, which was measured rather than
 assumed:
 
+Probed against **graphdblite 0.1.2**:
+
 | Probe | Result |
 |---|---|
 | `LOAD CSV FROM 'file:///etc/passwd'` | `SyntaxError` — not parsed |
 | `apoc.load.json('file://…')` | `SyntaxError` |
-| `CALL dbms.procedures()`, `CALL db.labels()` | `ProcedureNotFound` — no procedure support |
+| `CALL dbms.procedures()`, `CALL db.labels()` | `ProcedureNotFound` — *these two* do not exist |
+| `CALL fts.search('Decision','title','x')` | **resolves.** Failed only with `index not found` — so the engine does have procedures |
 | `CREATE`, `DETACH DELETE` | refused: writes need an explicit write transaction |
+
+**Read this table as a snapshot of one version, not as a property of the
+engine, and re-probe it before relying on it.** An earlier draft of this
+document concluded "no procedure support" from the two `ProcedureNotFound`
+rows. That was wrong: `fts.search` resolves. The conclusion survived the
+correction but the reason did not, and in a security argument a wrong reason is
+worse than no reason — it is what someone relaxes a rule on.
+
+The reason the conclusion holds is narrower and does not depend on the
+procedure namespace being empty: **`/api/cypher` runs every statement inside
+graphdblite's read transaction, which refuses writes outright**, and the one
+procedure known to exist (`fts.search`) reads the graph's own fulltext indexes —
+no filesystem access, no network, no mutation. A new procedure appearing in a
+future version could change that, which is exactly why this is a probe log with
+a version on it.
 
 Arbitrary Cypher therefore reads the decision graph and nothing else — the same
 data the UI renders. Three rules follow, and they are requirements, not advice:
@@ -131,8 +155,9 @@ in use (`server` serves `web/dist` when it exists).
   loaded graph client-side via minisearch, and the entire point of search here
   is finding nodes that are *not* loaded.
 
-- **FastAPI + uvicorn**, single file, `uv run` inline deps. Seven endpoints and
-  an SSE stream; this is the least code for that.
+- **FastAPI + uvicorn**, run as `uv run python -m server.precedent_ui` against
+  the project's `pyproject.toml` deps. Six endpoints and an SSE stream; this is
+  the least code for that.
 
 - **Rejected: Neo4j.** Importing into a real Neo4j buys Bloom/Browser for free
   but costs a server, a driver, an import job that must track the journal, and
@@ -156,10 +181,16 @@ All endpoints read-only. All node references are `__id` integers unless stated.
 ```json
 { "labels": {"Decision": 56, "Project": 6, "Tag": 13, ...},
   "edge_types": {"IN_PROJECT": 56, "ABOUT": 71, ...},
-  "mtime": 1789040000.0 }
+  "mtime": "1789040000123456789:41231" }
 ```
 
-Feeds the legend, the label filter list, and change detection.
+Feeds change detection. The legend and the label filter list this was also
+meant to feed are **cut from v1** (see the cut list below): the endpoint and its
+typed client (`api.ts`'s `getMeta`) stay, ready for them, but nothing calls it
+today and no legend or filter UI exists.
+
+`mtime` is not a numeric timestamp but a journal-derived change stamp string,
+`"<mtime_ns>:<size>"` over `journal.jsonl` — see the `/api/stream` section.
 
 ### `GET /api/search?q=<text>&limit=50`
 
@@ -249,10 +280,22 @@ Engine errors are returned verbatim with their class name (`ParseError`,
 
 ### `GET /api/stream`
 
-SSE. Polls `graph.db` mtime server-side; emits `{"mtime": ..., "labels": {...}}`
-when it moves. The client shows a *graph changed* badge. Refresh re-fetches
+SSE. Polls `journal.jsonl`'s `(mtime_ns, size)` server-side (not `graph.db`'s
+mtime — see the constraints above) and emits `{"mtime": "<mtime_ns>:<size>"}`
+when it moves, including once immediately on connect so a client learns the
+current value. The client shows a *graph changed* badge. Refresh re-fetches
 props and degrees for loaded nodes and runs `edges-between` over them. It never
 auto-expands — the working set belongs to the user.
+
+Refresh drops a node **only** on a 404. Any other failure — a 503 while the
+store is missing or busy, a 5xx, a dropped connection — leaves the node, its
+root status and its pin alone and says the refresh was incomplete, because none
+of those say anything about whether the node still exists.
+
+One thing this deliberately does not catch: `precedent rebuild` replays the
+existing journal into a fresh `graph.db` without appending to the journal, so a
+bare rebuild does not move the stamp. No decision changed, and the refresh path
+already tolerates a renumbered `__id` via the 404 above.
 
 ## Interaction model
 
@@ -264,7 +307,7 @@ auto-expands — the working set belongs to the user.
 │ ▸ Tests run…  │                                  │ RATIONALE       │
 │ ▸ backend     │        (working set only)        │ status: active  │
 │               │                                  │ ─────────────── │
-│ labels        │                          ┌─────┐ │ expand:         │
+│ labels  (cut) │                          ┌─────┐ │ expand:         │
 │ ☑ Decision    │                          │ mini│ │ [CHOSE 3]       │
 │ ☑ Project …   │                          └─────┘ │ [REJECTED 5]    │
 ├───────────────┴──────────────────────────────────┤ [ABOUT 2]       │
@@ -298,14 +341,26 @@ than an arbitrary slice of the single biggest type.
 
 ### Collapse, and the canvas invariant
 
-> **Every node on the canvas is a root, is pinned, or is connected to one.**
+> **Every node on the canvas is a root, is pinned, or is connected to a root.**
 
 A **root** is a node asked for by name: a search hit, a Cypher *add to canvas*,
-or the default Projects view. Roots and pinned nodes are sticky and are never
-removed automatically.
+or the default Projects view. Roots and pinned nodes are both sticky — neither
+is ever removed automatically — but they are sticky in different ways, and the
+difference is the whole of the invariant:
+
+- A **root** anchors a neighbourhood. The BFS starts from the roots, so
+  anything still connected to one survives.
+- A **pin** anchors exactly one node. Pinning means *hold this still and keep
+  it*, not *protect everything attached to it*. A pinned node is added to the
+  survivor set directly and is **not** a BFS source, so its neighbours can
+  vanish out from under it and leave it sitting alone. That is deliberate: a
+  pin is a layout gesture (drag a node where you want it), and letting a drag
+  silently make a whole subgraph uncollapsible would be a surprising amount of
+  meaning to attach to moving something.
 
 `collapse(n)` drops every non-root, non-pinned node that loses its path to a
-root once `n` stops being an expansion point — one BFS from the roots.
+root once `n` stops being an expansion point — one BFS from the roots, with the
+pinned nodes seeded into the survivor set.
 
 Defining it this way rather than as "remove what arrived from this node" avoids
 tracking provenance, which goes stale the moment the same node is reached a
@@ -316,7 +371,11 @@ second way. The consequences are the ones you want:
 - no orphan islands are left drifting, which removing only immediate
   neighbours would do;
 - *hide others* is the same operation with one node as the only root, so it
-  costs no extra machinery.
+  costs no extra machinery. It differs from collapse in one respect the code
+  must honour: because its root set is a single node, it drops nodes that *are*
+  roots, so it prunes `roots`/`pinned` for everything it removes. A dropped id
+  left in `roots` would come back as asked-for-by-name the next time expansion
+  reached it, and would then never collapse.
 
 Collapsing a node you searched for does nothing to it, because it is a root.
 That is correct — you asked for it.
@@ -353,7 +412,11 @@ Default view on open: the Projects and their Tags. That is the map, and an empty
 canvas is a worse start than a small one.
 
 Explicitly cut from v1: multi-select, persisted layouts, undo history, edge
-filtering beyond type chips, path rendering, expand-to-depth-N.
+filtering beyond type chips, path rendering, expand-to-depth-N, **the label
+legend, and the label filter checkboxes** drawn in the sketch above. The last
+two were specified and never built; `/api/meta` already returns the label and
+edge-type counts they need, so they are a UI-only addition whenever they are
+wanted.
 
 ## The precedent skin
 
@@ -418,24 +481,25 @@ as faded rather than as invisible.
 
 ```
 precedent-ui/
-  server/precedent_ui.py   # uv script; inline deps: fastapi, uvicorn, graphdblite
+  server/precedent_ui.py   # FastAPI app + CLI; deps in pyproject.toml
   server/queries.py        # every cypher string, in one place, unit-testable
+  server/store.py          # read-only graphdblite access, change stamp
   web/
     src/api.ts             # typed client for the contract above
     src/graph/             # sigma container, merge, expand, layout
     src/panels/            # search, detail, cypher console
     src/skin.ts            # semantic colour tokens (light/dark), captions, status styling
     src/theme.ts           # tri-state toggle, prefers-color-scheme, persistence
-  tests/test_api.py
+  tests/test_api.py, tests/test_queries.py, tests/test_store.py
   docs/superpowers/specs/
 ```
 
 Running:
 
 ```bash
-uv run server/precedent_ui.py              # defaults to ~/.local/share/precedent
-uv run server/precedent_ui.py --home DIR    # honours the `init` pointer file
-cd web && npm run dev                       # proxies /api to the server
+uv run python -m server.precedent_ui             # defaults to ~/.local/share/precedent
+uv run python -m server.precedent_ui --home DIR  # honours the `init` pointer file
+cd web && bun run dev                            # proxies /api to the server
 ```
 
 ## Failure handling
@@ -444,7 +508,8 @@ cd web && npm run dev                       # proxies /api to the server
 |---|---|
 | store missing or busy | message naming the resolved path; SSE keeps retrying |
 | Cypher syntax/storage error | engine message and class returned verbatim |
-| stale `__id` after `rebuild` | 404 → *graph was rebuilt, re-run your search* |
+| stale `__id` after `rebuild` | 404 → node dropped, *graph was rebuilt* notice |
+| any other refresh failure (503, 5xx, dropped connection) | nothing removed; *refresh incomplete* notice |
 | result over 1000 rows | truncated, and the UI says so |
 | node with enormous degree | capped expansion with an explicit remaining count |
 
@@ -455,14 +520,31 @@ through `precedent.py rebuild`, then drive the real endpoints through FastAPI's
 TestClient. No mocked graph — consistent with this project's recorded norm that
 tests run against the real engine rather than an in-memory stand-in.
 
+That makes precedent's own CLI a test dependency. Its path is `$PRECEDENT_CLI`,
+defaulting to `~/work_self/my-decisions/precedent/scripts/precedent.py`; when it
+is absent those tests skip with a message naming the variable, so a fresh
+checkout reports "skipped", never a stack of errors. `tests/test_queries.py` is
+pure and runs regardless.
+
 Covered: search ranking and stability, degree breakdown correctness, expansion
 caps and paging, budget allocation across edge types, `edges-between` completeness, cell classification for node /
 rel / scalar / path, the 1000-row cap, error passthrough, stale-id 404, and that
 a `CREATE` through `/api/cypher` is refused by the engine.
 
-The frontend's second non-trivial pure function is the collapse BFS — roots,
-pins, reachability — and it gets vitest coverage alongside the classifier:
-expand-then-collapse round trip, a node reached by two routes surviving, and no
-orphans left behind.
+On the frontend, vitest covers every non-trivial pure function — the line is
+"does this need a browser", not "is this in the UI half":
 
-Rendering itself is not unit-tested.
+- the cell **classifier** (node / rel / scalar);
+- the collapse **BFS** — roots, pins, reachability: expand-then-collapse round
+  trip, a node reached by two routes surviving, no orphans left behind;
+- the expand-all **budget** allocation across edge types;
+- **`mergeInto`** — pure graphology, no sigma: that a re-merged node keeps its
+  position (and its pin), that a new one gets a starting position, and that an
+  edge needs both endpoints present;
+- **`planRefresh`** — that only a 404 drops a node;
+- **`skin.ts`'s `nodePaint`/`edgePaint`** — status fading, the regret colour,
+  the two warning edge types.
+
+Rendering itself is not unit-tested: the sigma container, the reducers' wiring
+and the event handlers need a real canvas, and the reviewed judgement is that a
+headless-browser harness costs more than it would catch here.
