@@ -224,6 +224,12 @@
   opacity: 0.7;
 }
 
+/* Status is visual here too, not only on the canvas. */
+.detail dd.status-regretted {
+  color: var(--warn-regret);
+  font-weight: 600;
+}
+
 .detail .expand {
   padding-top: 8px;
   border-top: 1px solid var(--border);

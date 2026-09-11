@@ -11,9 +11,10 @@ import { LayoutForceAtlas2Control } from "@react-sigma/layout-forceatlas2";
 import { MiniMap } from "@react-sigma/minimap";
 import Graph from "graphology";
 import { useEffect, useRef } from "react";
-import { tokens, type Mode } from "../skin";
+import { edgePaint, nodePaint, tokens, type Mode } from "../skin";
 
-/** Theme and hover live in the reducers, so a theme flip never rewrites attributes. */
+/** Theme, status and hover all live in the reducers, so neither a theme flip nor
+ * the precedent skin ever rewrites graph attributes — they only read them. */
 function Reducers({ mode, hovered }: { mode: Mode; hovered: string | null }) {
   const sigma = useSigma();
   useEffect(() => {
@@ -21,7 +22,9 @@ function Reducers({ mode, hovered }: { mode: Mode; hovered: string | null }) {
     sigma.setSetting("nodeReducer", (node, data) => {
       const base = {
         ...data,
-        color: t.labelColor[data.nodeLabel as string] ?? t.edge,
+        // Status is visual: `superseded` fades, `regretted` turns the regret
+        // warning colour. Both come from the node's own `status` attribute.
+        color: nodePaint(t, data.nodeLabel as string, data.status as string),
         zIndex: data.status === "superseded" ? 0 : 1,
       };
       // `hovered` can outlive the node it names: sigma emits no `leaveNode`
@@ -35,7 +38,8 @@ function Reducers({ mode, hovered }: { mode: Mode; hovered: string | null }) {
       return { ...base, color: t.edge, label: "" };
     });
     sigma.setSetting("edgeReducer", (edge, data) => {
-      const base = { ...data, color: t.edge };
+      // DIVERGES_FROM and REGRETS are drawn as warnings, not read from a panel.
+      const base = { ...data, color: edgePaint(t, data.edgeType as string) };
       const graph = sigma.getGraph();
       if (!hovered || !graph.hasNode(hovered)) return base;
       return graph.extremities(edge).includes(hovered) ? base : { ...base, hidden: true };

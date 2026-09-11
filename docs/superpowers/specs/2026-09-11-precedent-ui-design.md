@@ -357,17 +357,30 @@ filtering beyond type chips, path rendering, expand-to-depth-N.
 
 ## The precedent skin
 
-- **Status is visual.** `active` solid · `superseded` faded · `regretted` struck
-  through in red. Superseded decisions are retained on purpose; seeing one
-  greyed next to its replacement is the point of retaining it.
+- **Status is visual.** `active` solid · `superseded` faded · `regretted` in the
+  regret warning colour. Superseded decisions are retained on purpose; seeing
+  one greyed next to its replacement is the point of retaining it. On the canvas
+  this is resolved in `nodeReducer` from the node's own `status` attribute
+  (`skin.ts`'s `nodePaint`), never written onto the graph; the detail panel does
+  the same in CSS. Strike-through was the original wording for `regretted`, but
+  sigma draws no text decoration on a node, so the colour carries it there.
 - **Captions**: Decision→`title`, Project→`name`, Tag/Topic/Option→`name`,
   Principle/Lesson→truncated `statement`.
 - **The detail panel leads with rationale** for a Decision. The *what* is
   recoverable from the code; the *why* is not, and it is why the graph exists.
   `despite` renders as a callout when set.
-- **The three warnings are drawn, not read**: CONFLICT (a live Decision CHOSE an
-  option another live Decision REJECTED), DIVERGENCE (`DIVERGES_FROM`), REGRET
-  (`REGRETS`).
+- **Two of the three warnings are drawn**: DIVERGENCE (`DIVERGES_FROM`) and
+  REGRET (`REGRETS`) are edge types the canvas holds, so `edgeReducer` paints
+  them `warn.divergence` / `warn.regret` and a regretted Decision's node takes
+  `warn.regret` too.
+
+  **CONFLICT is not drawn, and cannot be.** "A live Decision CHOSE an option
+  another live Decision REJECTED" is not a property of any node or edge the
+  canvas has loaded — detecting it needs a cross-referencing query over the
+  whole store, and the canvas is a partial working set by design. It is surfaced
+  by `precedent check` and by the *contradictions* saved query in the Cypher
+  console instead. `skin.ts` keeps a `warn.conflict` token, unused and commented
+  as such, only so the light/dark palettes stay symmetric if that ever changes.
 - **Saved queries** in the sidebar — the questions the tool exists for:
   - kin of a project by tag overlap, with the shared tags named
   - coverage gaps: topics settled in ≥2 kin projects, open here
@@ -388,10 +401,11 @@ Panels are ordinary CSS custom properties. The canvas is the part with a trap:
 sigma reads colours from graph attributes, so a naive theme switch would rewrite
 every node's stored attributes and entangle presentation with graph state.
 
-Instead `skin.ts` holds **semantic tokens** — `label.Decision`,
-`status.superseded`, `status.regretted`, `edge.default`, `warn.conflict`,
-`warn.divergence` — each with a light and a dark value, and sigma resolves them
-through `nodeReducer`/`edgeReducer` at render time. Switching theme swaps the
+Instead `skin.ts` holds **semantic tokens** — `labelColor.Decision`,
+`statusAlpha.superseded`, `statusAlpha.regretted`, `edge`, `warn.divergence`,
+`warn.regret` (and an unused `warn.conflict`, see above) — each with a light and
+a dark value, and sigma resolves them through `nodeReducer`/`edgeReducer` at
+render time. Switching theme swaps the
 token table and calls `refresh()`; graph data is never touched. Those reducers
 already exist for hover dimming, so this is the same mechanism, not a new one.
 

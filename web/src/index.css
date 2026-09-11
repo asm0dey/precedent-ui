@@ -6,6 +6,8 @@
   --text-dim: #6b7280;
   --accent: #2f6fd0;
   --warn: #c2410c;
+  /* mirrors skin.ts's warn.regret — see the canvas reducers */
+  --warn-regret: #b91c1c;
   --superseded-alpha: 0.35;
 
   color-scheme: light;
@@ -25,6 +27,7 @@
   --text-dim: #a1a8b3;
   --accent: #7aa9f0;
   --warn: #f08a4b;
+  --warn-regret: #f06a6a;
   /* superseded needs a *higher* alpha on a dark ground to still read as faded
      rather than as invisible — mirrors skin.ts's statusAlpha. */
   --superseded-alpha: 0.5;
