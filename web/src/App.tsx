@@ -1,9 +1,10 @@
 import Graph from "graphology";
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
-import { runCypher } from "./api";
+import { edgesBetween, getNode, runCypher, type Hit } from "./api";
 import { cellsToGraph } from "./classify";
 import { Canvas, mergeInto } from "./graph/Canvas";
+import { Search } from "./panels/Search";
 import { useTheme, type Pref } from "./theme";
 
 const DEFAULT_VIEW = "MATCH (p:Project)-[r:TAGGED]->(t:Tag) RETURN p AS p, r AS r, t AS t";
@@ -19,7 +20,23 @@ export default function App() {
   const graph = useRef(new Graph()).current;
   const roots = useRef(new Set<string>()).current;
   const [hovered] = useState<string | null>(null);
+  const [selected, setSelected] = useState<number | null>(null);
   const [, setVersion] = useState(0); // bump to re-render after a merge
+
+  async function completeEdges() {
+    const ids = graph.nodes().map(Number);
+    const { edges } = await edgesBetween(ids);
+    mergeInto(graph, [], edges, mode);
+    setVersion((v) => v + 1);
+  }
+
+  async function onPick(hit: Hit) {
+    const n = await getNode(hit.id);
+    mergeInto(graph, [n], [], mode);
+    roots.add(String(hit.id)); // asked for by name, so never auto-removed
+    setSelected(hit.id);
+    await completeEdges(); // connect it to whatever is already loaded
+  }
 
   useEffect(() => {
     runCypher(DEFAULT_VIEW).then(({ rows }) => {
@@ -50,11 +67,15 @@ export default function App() {
           ))}
         </div>
       </header>
-      <aside className="panel panel-search">{/* Task 10: <Search /> */}</aside>
+      <aside className="panel panel-search">
+        <Search onPick={onPick} />
+      </aside>
       <main className="panel-canvas">
         <Canvas graph={graph} mode={mode} hovered={hovered} />
       </main>
-      <aside className="panel panel-detail">{/* Task 11: <Detail /> */}</aside>
+      <aside className="panel panel-detail" data-selected={selected ?? undefined}>
+        {/* Task 11: <Detail /> */}
+      </aside>
       <footer className="panel-cypher">{/* Task 13: <Cypher /> */}</footer>
     </div>
   );

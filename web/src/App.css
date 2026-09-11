@@ -40,6 +40,73 @@
   border-right: 1px solid var(--border);
 }
 
+.search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+}
+
+.search-results li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.search-results li:hover {
+  background: var(--bg);
+}
+
+.search-results strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.search-results small {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.chip {
+  align-self: flex-start;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  background: var(--border);
+  color: var(--text-dim);
+}
+
+.error {
+  color: #e5484d;
+  font-size: 12px;
+}
+
 .panel-canvas {
   grid-area: canvas;
   position: relative;
