@@ -8,7 +8,7 @@
   --warn: #c2410c;
   --superseded-alpha: 0.35;
 
-  color-scheme: light dark;
+  color-scheme: light;
   font: 15px/1.4 system-ui, "Segoe UI", Roboto, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -17,6 +17,7 @@
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #14161a;
   --panel-bg: #1b1e24;
   --border: #2e323b;
@@ -45,4 +46,18 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
+}
+
+/* @react-sigma/core's own stylesheet hardcodes --sigma-controls-background-color:#fff
+   and --sigma-controls-color:#000 on a plain `:root` rule, independent of our theme —
+   so its zoom/fit/fullscreen/layout control icons stay light-mode-only otherwise,
+   invisible (white-on-white) once color-scheme:dark makes their `buttontext`/inherited
+   color resolve white too. `:root[data-theme]` (0,2,0) outranks their plain `:root`
+   (0,1,0) regardless of stylesheet load order, so this remaps their control colors to
+   our own theme tokens without needing to touch @react-sigma/core's CSS. */
+:root[data-theme] {
+  --sigma-controls-background-color: var(--panel-bg);
+  --sigma-controls-background-color-hover: var(--border);
+  --sigma-controls-border-color: var(--border);
+  --sigma-controls-color: var(--text);
 }
