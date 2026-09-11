@@ -5,7 +5,7 @@ import { edgesBetween, expand, getNode, runCypher, type Degree, type Hit } from 
 import { cellsToGraph, type GEdge, type GNode } from "./classify";
 import { allocate } from "./graph/budget";
 import { Canvas, type Focus } from "./graph/Canvas";
-import { survivors } from "./graph/collapse";
+import { withinHops } from "./graph/neighbourhood";
 import { ContextMenu, type ContextMenuAction } from "./graph/ContextMenu";
 import { mergeInto } from "./graph/merge";
 import { planRefresh } from "./graph/refresh";
@@ -70,6 +70,7 @@ export default function App() {
   const [menu, setMenu] = useState<Menu | null>(null);
   // Camera target. The nonce makes re-picking the same hit move the camera again.
   const [cameraFocus, setCameraFocus] = useState<Focus | null>(null);
+  const [fitNonce, setFitNonce] = useState(0);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   // A journal-derived change stamp string ("<mtime_ns>:<size>"), not a
   // numeric timestamp — see server/store.py's Store.change_stamp().
@@ -154,59 +155,41 @@ export default function App() {
     if (left > 0) toast(`added ${added} of ${added + left} — use the type chips for the rest`);
   }
 
-  /** `{src, dst}` view of the live graph — the only shape `survivors` needs. */
+  /** `{src, dst}` view of the live graph — the only shape `withinHops` needs. */
   function graphEdges() {
     return graph.edges().map((e) => ({ src: graph.source(e), dst: graph.target(e) }));
   }
 
-  /** Structural, not historical: drops whatever loses its path to a root once `id` stops
-   * being an expansion point. `id`'s own edges are excluded from the reachability check —
-   * otherwise, when `id` is itself a root (e.g. a search hit), `id`'s root status would
-   * keep its just-expanded children reachable through it and collapse would remove
-   * nothing. `id` itself is always kept — collapse shrinks its neighbourhood, it doesn't
-   * remove the node that was double-clicked. */
-  /** Exactly what `collapse(id)` would remove. Shared with the context menu so the
-   * offered action and the performed action can never disagree. */
-  function collapseDropSet(id: number): string[] {
-    const key = String(id);
-    const present = graph.nodes();
-    const edges = graphEdges().filter((e) => e.src !== key && e.dst !== key);
-    const keep = survivors(edges, present, roots, pinned);
-    return present.filter((n) => !keep.has(n) && n !== key);
-  }
-
-  function collapse(id: number) {
-    const dropping = collapseDropSet(id);
-    for (const n of dropping) graph.dropNode(n);
-    expandedAll.delete(id);
-
-    // Say so rather than appearing broken. Collapse only removes what would
-    // lose its path to a root, so on a densely connected node it legitimately
-    // removes nothing — and silently doing nothing reads as a bug.
-    if (dropping.length === 0) {
-      toast("nothing to collapse — everything here is reachable another way");
-    }
-    setVersion((v) => v + 1);
-  }
-
-  /** Hide everything except what's reachable from `id` — `survivors` with `id` as the
-   * sole root. Pinned nodes still survive.
+  /** Keep this node and everything within `depth` hops; drop the rest.
    *
-   * Unlike collapse, this drops nodes that ARE roots (every root not reachable from
-   * `id`), so it must prune the bookkeeping the same way `hide` does. A dropped id left
-   * in `roots` would be silently treated as asked-for-by-name the next time expansion
-   * reached it, making it uncollapsible. */
-  function focus(id: number) {
-    const present = graph.nodes();
-    const keep = survivors(graphEdges(), present, new Set([String(id)]), pinned);
-    for (const n of present) {
-      if (keep.has(n)) continue;
-      graph.dropNode(n);
+   * Replaces two reachability-based actions that were vacuous on a connected
+   * graph: "collapse" kept whatever still reached a root, and "focus (hide
+   * others)" kept whatever reached the focused node — on a graph where
+   * everything connects to everything, both kept everything. Depth is the
+   * question people actually ask: show me this and its surroundings.
+   *
+   * Pinned nodes survive regardless. Pinning is an explicit "keep this", and
+   * silently dropping something the user pinned would be the more surprising
+   * behaviour. */
+  function collapseTo(id: number, depth: number) {
+    const keep = withinHops(graphEdges(), String(id), depth);
+    const dropped = graph
+      .nodes()
+      .filter((n) => !keep.has(n) && !pinned.has(n))
+      .map((n) => {
+        graph.dropNode(n);
+        return n;
+      });
+    for (const n of dropped) {
       roots.delete(n);
-      pinned.delete(n);
       expandedAll.delete(Number(n));
       if (selected === Number(n)) setSelected(null);
     }
+    // The node you acted on is always kept, so it stays a sensible anchor for
+    // the next expansion — and it becomes a root, because you asked for it.
+    roots.add(String(id));
+    if (dropped.length === 0) toast("nothing further away than that was loaded");
+    setFitNonce((n) => n + 1); // show what is left, wherever the camera was
     setVersion((v) => v + 1);
   }
 
@@ -230,7 +213,10 @@ export default function App() {
   }
 
   async function onDoubleClick(id: number) {
-    if (expandedAll.has(id)) collapse(id);
+    // The inverse of expand-all: keep the node and one hop. Predictable, and
+    // it no longer depends on a reachability rule that a connected graph makes
+    // vacuous.
+    if (expandedAll.has(id)) collapseTo(id, 1);
     else await expandAll(id);
   }
 
@@ -250,13 +236,10 @@ export default function App() {
         expandAll(id);
         break;
       case "collapse":
-        collapse(id);
+        collapseTo(id, action.depth);
         break;
       case "pin":
         togglePin(id);
-        break;
-      case "focus":
-        focus(id);
         break;
       case "hide":
         hide(id);
@@ -363,6 +346,7 @@ export default function App() {
           hovered={hovered}
           version={version}
           focus={cameraFocus}
+          fit={fitNonce}
           onSelect={setSelected}
           onDoubleClick={onDoubleClick}
           onContextMenu={onContextMenu}
@@ -395,7 +379,6 @@ export default function App() {
         nodeId={menu?.nodeId ?? -1}
         degrees={menu?.degrees ?? []}
         caption={menu?.caption ?? ""}
-        collapseDrops={menu ? collapseDropSet(menu.nodeId).length : 0}
         onAction={onMenuAction}
         onClose={() => setMenu(null)}
       />

@@ -4,9 +4,8 @@ import type { Degree } from "../api";
 export type ContextMenuAction =
   | { kind: "expand"; degree: Degree }
   | { kind: "expand-all" }
-  | { kind: "collapse" }
+  | { kind: "collapse"; depth: number }
   | { kind: "pin" }
-  | { kind: "focus" }
   | { kind: "hide" }
   | { kind: "copy-key" };
 
@@ -28,7 +27,7 @@ type Row =
  * main list (under a non-interactive "expand" heading) keeps one roving-focus model
  * for the whole menu: ArrowUp/Down and wraparound work the same everywhere.
  */
-function rowsFor(degrees: Degree[], collapseDrops: number): Row[] {
+function rowsFor(degrees: Degree[]): Row[] {
   return [
     { kind: "heading", text: "expand" },
     ...degrees.map(
@@ -40,23 +39,17 @@ function rowsFor(degrees: Degree[], collapseDrops: number): Row[] {
     ),
     { kind: "item", label: "all", action: { kind: "expand-all" } },
     { kind: "sep" },
-    {
-      kind: "item",
-      label: collapseDrops > 0 ? `collapse (${collapseDrops})` : "collapse",
-      action: { kind: "collapse" },
-      // Collapse only removes what would lose its path to a root. On a node
-      // whose neighbours are all reachable another way — a tag on two projects,
-      // say — it provably removes nothing, so it is offered as unavailable with
-      // the reason rather than silently doing nothing when clicked.
-      disabled: collapseDrops === 0,
-      title:
-        collapseDrops === 0
-          ? "nothing here would be removed — everything is reachable another way"
-          : `removes ${collapseDrops} node${collapseDrops === 1 ? "" : "s"}`,
-    },
+    { kind: "heading", text: "keep only" },
+    ...[1, 2, 3].map(
+      (depth): Row => ({
+        kind: "item",
+        label: depth === 1 ? "this node + 1 hop" : `this node + ${depth} hops`,
+        action: { kind: "collapse", depth },
+        title: `drop everything more than ${depth} hop${depth === 1 ? "" : "s"} away`,
+      }),
+    ),
     { kind: "sep" },
     { kind: "item", label: "pin / unpin", action: { kind: "pin" } },
-    { kind: "item", label: "focus (hide others)", action: { kind: "focus" } },
     { kind: "item", label: "hide", action: { kind: "hide" } },
     { kind: "sep" },
     { kind: "item", label: "copy domain key", action: { kind: "copy-key" } },
@@ -68,7 +61,6 @@ export function ContextMenu({
   nodeId,
   degrees,
   caption,
-  collapseDrops,
   onAction,
   onClose,
 }: {
@@ -76,9 +68,6 @@ export function ContextMenu({
   nodeId: number;
   degrees: Degree[];
   caption: string;
-  /** How many nodes `collapse` would actually remove, computed by the caller
-   * from the live graph. Zero means the action is offered as unavailable. */
-  collapseDrops: number;
   onAction: (action: ContextMenuAction) => void;
   onClose: () => void;
 }) {
@@ -111,7 +100,7 @@ export function ContextMenu({
 
   if (!at) return null;
 
-  const rows = rowsFor(degrees, collapseDrops);
+  const rows = rowsFor(degrees);
   let itemIndex = 0;
 
   function onKeyDown(e: React.KeyboardEvent<HTMLUListElement>) {

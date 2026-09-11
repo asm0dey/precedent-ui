@@ -81,14 +81,26 @@ const SETTLE_MS = 1500;
 /** How far in to zoom when centring on a node. Lower is closer. */
 const FOCUS_RATIO = 0.25;
 
-function AutoLayout({ version, focus }: { version: number; focus: Focus | null }) {
+function AutoLayout({
+  version,
+  focus,
+  fit,
+}: {
+  version: number;
+  focus: Focus | null;
+  fit: number;
+}) {
   const { start, stop } = useWorkerLayoutForceAtlas2({ settings: { slowDown: 10 } });
-  const { goto } = useCamera();
+  const { goto, reset } = useCamera();
   const sigma = useSigma();
   // Read inside the settle callback rather than as an effect dependency: a new
   // focus must not restart the layout, and a merge must not re-centre the camera.
   const pending = useRef<Focus | null>(null);
   pending.current = focus;
+  // A pruning action leaves a handful of nodes scattered outside a camera that
+  // was zoomed in somewhere else; fitting afterwards is what makes the result
+  // visible. Tracked by nonce so repeating the action refits.
+  const lastFit = useRef(fit);
 
   useEffect(() => {
     start();
@@ -97,6 +109,11 @@ function AutoLayout({ version, focus }: { version: number; focus: Focus | null }
       // Centre only once the layout has finished moving things. Doing it at
       // merge time would aim the camera at the random position a new node is
       // seeded with, and land on empty space a second later.
+      if (lastFit.current !== fit) {
+        lastFit.current = fit;
+        reset({ duration: 600 });
+        return;
+      }
       const want = pending.current;
       if (!want) return;
       const d = sigma.getNodeDisplayData(String(want.id));
@@ -106,7 +123,7 @@ function AutoLayout({ version, focus }: { version: number; focus: Focus | null }
       clearTimeout(timer);
       stop();
     };
-  }, [version, start, stop, goto, sigma]);
+  }, [version, start, stop, goto, reset, sigma, fit]);
 
   return null;
 }
@@ -198,6 +215,7 @@ export function Canvas({
   hovered,
   version,
   focus,
+  fit,
   onSelect,
   onDoubleClick,
   onContextMenu,
@@ -212,6 +230,8 @@ export function Canvas({
   /** Node to centre on once the layout settles. The nonce lets the same node be
    * re-focused — searching for it twice should move the camera twice. */
   focus: Focus | null;
+  /** Bumped to refit the camera around whatever is left after a pruning action. */
+  fit: number;
 } & CanvasHandlers) {
   const t = tokens(mode);
   return (
@@ -221,7 +241,7 @@ export function Canvas({
       settings={{ allowInvalidContainer: true, defaultEdgeType: "arrow", labelDensity: 0.2 }}
     >
       <Reducers mode={mode} hovered={hovered} />
-      <AutoLayout version={version} focus={focus} />
+      <AutoLayout version={version} focus={focus} fit={fit} />
       <Events
         onSelect={onSelect}
         onDoubleClick={onDoubleClick}
