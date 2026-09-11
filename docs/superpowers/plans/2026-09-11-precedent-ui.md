@@ -1156,11 +1156,11 @@ git commit -m "feat: cypher console endpoint and SSE change stream"
 - [ ] **Step 1: Scaffold and install**
 
 ```bash
-npm create vite@latest web -- --template react-ts
+bun create vite web --template react-ts
 cd web
-npm install
-npm install sigma graphology @react-sigma/core @react-sigma/minimap @react-sigma/layout-forceatlas2
-npm install -D vitest
+bun install
+bun add sigma graphology @react-sigma/core @react-sigma/minimap @react-sigma/layout-forceatlas2
+bun add -d vitest
 ```
 
 Add to `web/package.json` scripts: `"test": "vitest run"`.
@@ -1302,7 +1302,7 @@ describe("cellsToGraph", () => {
 
 - [ ] **Step 4: Run the tests to verify they fail**
 
-Run: `cd web && npm test`
+Run: `cd web && bun run test`
 Expected: FAIL — cannot resolve `./budget`, `./collapse`, `./classify`
 
 - [ ] **Step 5: Implement the pure modules**
@@ -1450,7 +1450,7 @@ export const runCypher = (query: string, params: Record<string, unknown> = {}) =
 
 - [ ] **Step 6: Run the tests to verify they pass**
 
-Run: `cd web && npm test`
+Run: `cd web && bun run test`
 Expected: 12 passed
 
 - [ ] **Step 7: Commit**
@@ -1692,7 +1692,7 @@ are the map you navigate from.
 
 ```bash
 uv run python -m server.precedent_ui --port 8899 &
-cd web && npm run dev
+cd web && bun run dev
 ```
 Open the printed URL. Expected: 6 Projects joined to their Tags, arrows drawn,
 hovering a node dims the rest, the theme toggle flips both panels and canvas,
@@ -2197,14 +2197,14 @@ Mount last, after every `/api` route, so the catch-all cannot shadow them.
 - [ ] **Step 3: Write `README.md`**
 
 Cover: what it is, that it is read-only, `uv run python -m server.precedent_ui`,
-the dev loop (`npm run dev` + the proxy), `npm run build` for the single-process
+the dev loop (`bun run dev` + the proxy), `bun run build` for the single-process
 mode, `--home` for a relocated store, and the note that `--index` (Task 15) is
 the one write it can ever perform.
 
 - [ ] **Step 4: Verify the full loop by hand**
 
 ```bash
-cd web && npm run build && cd ..
+cd web && bun run build && cd ..
 uv run python -m server.precedent_ui --port 8899
 ```
 Open `http://127.0.0.1:8899`. In another terminal record a decision with
@@ -2283,7 +2283,7 @@ Run the whole suite and both hand-checks before calling this done:
 
 ```bash
 uv run pytest -v
-cd web && npm test && npm run build
+cd web && bun run test && bun run build
 ```
 
 Then, against the real store: search finds a Decision; double-click expands its
