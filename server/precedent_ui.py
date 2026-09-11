@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
+import json
 import pathlib
 import re
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
+from graphdblite import GraphDBError
 from pydantic import BaseModel
 
 from server import queries
@@ -17,9 +21,17 @@ VALID_TYPE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 LABEL_COUNTS = "MATCH (n) RETURN labels(n)[0] AS label, count(*) AS n ORDER BY n DESC"
 EDGE_COUNTS = "MATCH ()-[r]->() RETURN type(r) AS type, count(*) AS n ORDER BY n DESC"
 
+MAX_ROWS = 1000
+
 
 class IdsIn(BaseModel):
     ids: list[int]
+
+
+class CypherIn(BaseModel):
+    query: str
+    params: dict = {}
+    max_rows: int = MAX_ROWS
 
 
 def create_app(home: pathlib.Path) -> FastAPI:
@@ -144,6 +156,35 @@ def create_app(home: pathlib.Path) -> FastAPI:
         rows = store.query(queries.EDGES_BETWEEN, {"ids": body.ids})
         seen = {queries.rel_out(r["r"])["id"]: queries.rel_out(r["r"]) for r in rows}
         return {"edges": list(seen.values())}
+
+    @app.post("/api/cypher")
+    def cypher(body: CypherIn) -> dict:
+        # No sanitising: graphdblite's query() refuses writes outside an
+        # explicit write transaction, so the engine is the enforcement point.
+        try:
+            rows = store.query(body.query, body.params)
+        except GraphDBError as e:
+            raise HTTPException(400, {"error": str(e), "type": type(e).__name__})
+        cap = min(body.max_rows, MAX_ROWS)
+        columns = list(rows[0].keys()) if rows else []
+        return {
+            "columns": columns,
+            "rows": [[queries.classify(r[c]) for c in columns] for r in rows[:cap]],
+            "truncated": len(rows) > cap,
+        }
+
+    @app.get("/api/stream")
+    async def stream() -> StreamingResponse:
+        async def events():
+            last = None
+            while True:
+                now = store.mtime()
+                if now != last:
+                    last = now
+                    yield f"data: {json.dumps({'mtime': now})}\n\n"
+                await asyncio.sleep(1.0)
+
+        return StreamingResponse(events(), media_type="text/event-stream")
 
     return app
 
