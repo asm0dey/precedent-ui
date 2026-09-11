@@ -73,6 +73,11 @@ export default function App() {
       <main className="panel-canvas">
         <Canvas graph={graph} mode={mode} hovered={hovered} />
       </main>
+      {
+        /* data-selected has no visual meaning: it exists only to give `selected`
+           a read so noUnusedLocals doesn't fail the build. Task 11 replaces this
+           seam by having <Detail /> actually consume `selected`. */
+      }
       <aside className="panel panel-detail" data-selected={selected ?? undefined}>
         {/* Task 11: <Detail /> */}
       </aside>
