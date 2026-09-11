@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import re
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from server import queries
 from server.store import DEFAULT_HOME, Store
+
+VALID_TYPE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 LABEL_COUNTS = "MATCH (n) RETURN labels(n)[0] AS label, count(*) AS n ORDER BY n DESC"
 EDGE_COUNTS = "MATCH ()-[r]->() RETURN type(r) AS type, count(*) AS n ORDER BY n DESC"
@@ -103,23 +106,29 @@ def create_app(home: pathlib.Path) -> FastAPI:
         limit: int = 50,
         offset: int = 0,
     ) -> dict:
-        directions = [dir] if dir in ("out", "in") else ["out", "in"]
+        # Validate parameters
+        if dir is not None and dir not in ("out", "in"):
+            raise HTTPException(400, f"invalid direction {dir!r} — expected 'out' or 'in'")
+        if type is not None and not VALID_TYPE.fullmatch(type):
+            raise HTTPException(400, f"invalid edge type {type!r}")
+
+        # Resolve direction: use provided dir or None for undirected
+        resolved_dir = dir  # This is either "out", "in", or None
+
         nodes: dict[int, dict] = {}
         edges: dict[str, dict] = {}
-        total = 0
-        for d in directions:
-            total += store.query(
-                queries.expand_count_cypher(type, d), {"id": node_id}
-            )[0]["n"]
-            rows = store.query(
-                queries.expand_cypher(type, d),
-                {"id": node_id, "limit": limit, "offset": offset},
-            )
-            for row in rows:
-                n = queries.node_out(row["m"])
-                nodes[n["id"]] = n
-                e = queries.rel_out(row["r"])
-                edges[e["id"]] = e
+        total = store.query(
+            queries.expand_count_cypher(type, resolved_dir), {"id": node_id}
+        )[0]["n"]
+        rows = store.query(
+            queries.expand_cypher(type, resolved_dir),
+            {"id": node_id, "limit": limit, "offset": offset},
+        )
+        for row in rows:
+            n = queries.node_out(row["m"])
+            nodes[n["id"]] = n
+            e = queries.rel_out(row["r"])
+            edges[e["id"]] = e
         return {
             "nodes": list(nodes.values()),
             "edges": list(edges.values()),

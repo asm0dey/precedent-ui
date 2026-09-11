@@ -116,22 +116,32 @@ def domain_key(node: dict) -> dict | None:
     return {"field": field, "value": node["props"][field]}
 
 
-def expand_cypher(edge_type: str | None, direction: str) -> str:
-    """Neighbours along one direction, optionally one type.
+def expand_cypher(edge_type: str | None, direction: str | None) -> str:
+    """Neighbours along one direction or both (undirected), optionally one type.
 
     Ordered by neighbour id so that offset paging is stable.
     """
     rel = f"[r:{edge_type}]" if edge_type else "[r]"
-    pattern = f"(n)-{rel}->(m)" if direction == "out" else f"(n)<-{rel}-(m)"
+    if direction == "out":
+        pattern = f"(n)-{rel}->(m)"
+    elif direction == "in":
+        pattern = f"(n)<-{rel}-(m)"
+    else:  # direction is None → undirected
+        pattern = f"(n)-{rel}-(m)"
     return (
         f"MATCH {pattern} WHERE id(n) = $id "
         f"RETURN m AS m, r AS r ORDER BY id(m) SKIP $offset LIMIT $limit"
     )
 
 
-def expand_count_cypher(edge_type: str | None, direction: str) -> str:
+def expand_count_cypher(edge_type: str | None, direction: str | None) -> str:
     rel = f"[r:{edge_type}]" if edge_type else "[r]"
-    pattern = f"(n)-{rel}->(m)" if direction == "out" else f"(n)<-{rel}-(m)"
+    if direction == "out":
+        pattern = f"(n)-{rel}->(m)"
+    elif direction == "in":
+        pattern = f"(n)<-{rel}-(m)"
+    else:  # direction is None → undirected
+        pattern = f"(n)-{rel}-(m)"
     return f"MATCH {pattern} WHERE id(n) = $id RETURN count(r) AS n"
 
 

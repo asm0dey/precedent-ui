@@ -88,18 +88,18 @@ def test_expand_returns_neighbours_and_connecting_edges(client):
 
 def test_expand_reports_the_untruncated_total(client):
     nid = _first_decision_id(client)
-    body = client.get(f"/api/expand/{nid}", params={"type": "CHOSE", "dir": "out", "limit": 1}).json()
+    body = client.get(f"/api/expand/{nid}", params={"type": "REJECTED", "dir": "out", "limit": 1}).json()
     assert len(body["nodes"]) == 1
-    assert body["total"] >= 1
+    assert body["total"] == 2, "total must be the untruncated count, not len(nodes)"
 
 
 def test_expand_pages_by_offset(client):
     nid = _first_decision_id(client)
-    args = {"type": "CHOSE", "dir": "out", "limit": 1}
+    args = {"type": "REJECTED", "dir": "out", "limit": 1}
     first = client.get(f"/api/expand/{nid}", params=args).json()
     second = client.get(f"/api/expand/{nid}", params={**args, "offset": 1}).json()
-    if second["nodes"]:
-        assert first["nodes"][0]["id"] != second["nodes"][0]["id"]
+    assert first["nodes"] and second["nodes"], "both pages must be non-empty with 2 edges"
+    assert first["nodes"][0]["id"] != second["nodes"][0]["id"]
 
 
 def test_expand_without_a_type_returns_every_type(client):
@@ -118,3 +118,24 @@ def test_edges_between_finds_edges_among_loaded_nodes(client):
 
 def test_edges_between_with_no_ids_returns_nothing(client):
     assert client.post("/api/edges-between", json={"ids": []}).json()["edges"] == []
+
+
+def test_expand_without_direction_respects_the_cap(client):
+    nid = _first_decision_id(client)
+    body = client.get(f"/api/expand/{nid}", params={"limit": 3}).json()
+    assert len(body["nodes"]) <= 3, "an omitted dir must not return 2x the cap"
+    assert body["total"] == 6, "total counts both directions undirected"
+
+
+def test_expand_with_invalid_type_returns_400(client):
+    nid = _first_decision_id(client)
+    r = client.get(f"/api/expand/{nid}", params={"type": "invalid-type"})
+    assert r.status_code == 400
+    assert "invalid edge type" in r.json()["detail"]
+
+
+def test_expand_with_invalid_direction_returns_400(client):
+    nid = _first_decision_id(client)
+    r = client.get(f"/api/expand/{nid}", params={"dir": "outt"})
+    assert r.status_code == 400
+    assert "invalid direction" in r.json()["detail"]
