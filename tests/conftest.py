@@ -34,3 +34,13 @@ def store(store_home: pathlib.Path):
     s = Store(store_home)
     yield s
     s.close()
+
+
+@pytest.fixture
+def client(store_home: pathlib.Path):
+    from fastapi.testclient import TestClient
+
+    from server.precedent_ui import create_app
+
+    with TestClient(create_app(store_home)) as c:
+        yield c
