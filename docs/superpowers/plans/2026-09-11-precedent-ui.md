@@ -22,6 +22,39 @@
 - **Every query that asks what is true now filters `status = 'active'`.** Superseded decisions are retained deliberately and otherwise pollute results.
 - **Store location** resolves like `precedent.py` does: default `~/.local/share/precedent`, and a `location` file inside it holding one absolute path relocates it — followed exactly **one** hop.
 
+## Security boundary
+
+`/api/cypher` executes arbitrary user-supplied Cypher on purpose, so the trust
+boundary is the loopback socket, not any individual endpoint. That is only
+acceptable because of what the engine cannot do, which was measured rather than
+assumed:
+
+| Probe | Result |
+|---|---|
+| `LOAD CSV FROM 'file:///etc/passwd'` | `SyntaxError` — not parsed |
+| `apoc.load.json('file://…')` | `SyntaxError` |
+| `CALL dbms.procedures()`, `CALL db.labels()` | `ProcedureNotFound` — no procedure support |
+| `CREATE`, `DETACH DELETE` | refused: writes need an explicit write transaction |
+
+Arbitrary Cypher therefore reads the decision graph and nothing else — the same
+data the UI renders. Three rules follow, and they are requirements, not advice:
+
+- **Bind loopback only.** `host="127.0.0.1"`. Never `0.0.0.0`.
+- **Never add permissive CORS.** No `CORSMiddleware` with `allow_origins=["*"]`.
+  Today a cross-origin page cannot reach `/api/cypher`, because a JSON POST
+  forces a preflight that goes unanswered. Opening CORS would hand a visited
+  web page read access to the user's whole decision graph.
+- **Validate interpolated Cypher fragments anyway.** `expand`'s `type` is the
+  only user value ever interpolated rather than parameterised; it is validated
+  against `^[A-Za-z_][A-Za-z0-9_]*$`. This buys clear 400s instead of opaque
+  500s rather than privilege containment — `/api/cypher` already grants more —
+  but an endpoint that builds Cypher from a request value should never be the
+  loose one.
+
+Known and accepted: a pathological query (a large cartesian product) can pin CPU
+before the 1000-row cap applies, and the engine exposes no statement timeout.
+For a single-user local tool the mitigation is Ctrl-C.
+
 ### Dependency declaration — amendment to the spec
 
 The spec says the server is a `uv run` script with inline deps. This plan uses a
