@@ -45,7 +45,9 @@ export default function App() {
   const [more, setMore] = useState<Record<string, number>>({});
   const [menu, setMenu] = useState<Menu | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const mtimeRef = useRef<number | null>(null);
+  // A journal-derived change stamp string ("<mtime_ns>:<size>"), not a
+  // numeric timestamp — see server/store.py's Store.change_stamp().
+  const mtimeRef = useRef<string | null>(null);
   const [changed, setChanged] = useState(false);
   // Bumped after a refresh so Detail re-fetches degrees for the still-selected node.
   const [refreshedAt, setRefreshedAt] = useState(0);

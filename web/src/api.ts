@@ -25,7 +25,9 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const getMeta = () =>
-  get<{ labels: Record<string, number>; edge_types: Record<string, number>; mtime: number }>(
+  // "mtime" is a journal-derived change stamp ("<mtime_ns>:<size>"), not a
+  // numeric timestamp — see server/store.py's Store.change_stamp().
+  get<{ labels: Record<string, number>; edge_types: Record<string, number>; mtime: string }>(
     "/api/meta",
   );
 

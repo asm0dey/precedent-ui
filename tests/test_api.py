@@ -3,7 +3,8 @@ def test_meta_reports_label_and_edge_counts(client):
     assert body["labels"]["Decision"] > 0
     assert body["labels"]["Project"] > 0
     assert body["edge_types"]["IN_PROJECT"] > 0
-    assert body["mtime"] > 0
+    # journal-derived change stamp ("<mtime_ns>:<size>"), not a numeric mtime
+    assert body["mtime"].count(":") == 1
 
 
 def test_a_missing_store_names_the_resolved_path(tmp_path):
@@ -192,7 +193,8 @@ def test_mtime_events_emits_immediately_then_on_change(store, store_home, tmp_pa
 
     Verifies that the generator:
     1. Emits immediately on first call (even before any change)
-    2. Emits a new frame only when mtime changes (not on every poll)
+    2. Emits a new frame only when the journal-derived stamp changes (not on
+       every poll)
     3. Frame format is correct SSE (data: JSON\n\n)
     """
     import asyncio
@@ -205,7 +207,10 @@ def test_mtime_events_emits_immediately_then_on_change(store, store_home, tmp_pa
         gen = mtime_events(store, interval=0.01)
         first = await anext(gen)
 
-        # Rebuild the graph to change its mtime
+        # build_store copies a *different* (shorter) journal over
+        # journal.jsonl before rebuilding — the copy is what moves the
+        # journal's mtime/size (the change_stamp the generator watches), the
+        # same way a real `precedent.py record` append would.
         shorter = tmp_path / "shorter.jsonl"
         shorter.write_text("".join(FIXTURE.read_text().splitlines(keepends=True)[:6]))
         build_store(store_home, shorter)
@@ -217,19 +222,20 @@ def test_mtime_events_emits_immediately_then_on_change(store, store_home, tmp_pa
     first, second = asyncio.run(asyncio.wait_for(scenario(), timeout=10))
 
     assert first.startswith("data: ") and first.endswith("\n\n")
-    first_mtime = json.loads(first.removeprefix("data: "))["mtime"]
-    assert first_mtime > 0
+    first_stamp = json.loads(first.removeprefix("data: "))["mtime"]
+    assert first_stamp
 
     assert second.startswith("data: ") and second.endswith("\n\n")
-    second_mtime = json.loads(second.removeprefix("data: "))["mtime"]
-    assert second_mtime != first_mtime, "a rebuilt graph must produce a new frame"
+    second_stamp = json.loads(second.removeprefix("data: "))["mtime"]
+    assert second_stamp != first_stamp, "a rewritten journal must produce a new frame"
 
 
 def test_mtime_events_emits_only_on_change(store):
     """A generator missing its `if now != last` guard would still pass the
     emits-immediately-then-on-change test above, and in the UI that means a
     "graph changed" badge flashing every second. Drive the generator across
-    several intervals with no change and assert no further frame arrives.
+    several intervals with no journal write and assert no further frame
+    arrives.
     """
     import asyncio
 

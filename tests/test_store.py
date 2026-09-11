@@ -41,17 +41,28 @@ def test_store_reflects_an_external_rebuild(store, store_home, tmp_path):
     assert after < before, "a long-lived handle must see an external rebuild"
 
 
-def test_store_query_does_not_perturb_mtime(store):
-    """graphdblite touches graph.db's mtime on open even for a pure read.
-
-    /api/stream's change signal is this same mtime (server/precedent_ui.py's
-    mtime_events), so an unguarded read would look identical to an external
-    write and fire a false "graph changed" badge on ordinary browsing.
+def test_change_stamp_ignores_pure_reads(store):
+    """graphdblite touches graph.db's mtime on open even for a pure read
+    (measured: every open+query+close bumps it, with no write issued) — see
+    Store.change_stamp's docstring. change_stamp() reads journal.jsonl
+    instead, which this class never opens, so repeated reads must not move
+    it.
     """
-    before = store.mtime()
+    before = store.change_stamp()
     for _ in range(3):
         store.query("MATCH (n) RETURN count(n) AS n")
-    assert store.mtime() == before
+    assert store.change_stamp() == before
+
+
+def test_change_stamp_moves_when_the_journal_is_rewritten(store, store_home, tmp_path):
+    """The one thing change_stamp() must actually detect: a real journal
+    write (here simulated the same way test_store_reflects_an_external_
+    rebuild does, via build_store's copy-then-rebuild)."""
+    before = store.change_stamp()
+    shorter = tmp_path / "shorter.jsonl"
+    shorter.write_text("".join(FIXTURE.read_text().splitlines(keepends=True)[:6]))
+    build_store(store_home, shorter)
+    assert store.change_stamp() != before
 
 
 def test_store_queries_from_many_threads(store):

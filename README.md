@@ -64,14 +64,28 @@ or future, should gain a second one.
 
 ## Live updates
 
-The server watches `graph.db`'s mtime and streams a Server-Sent Events frame
-over `/api/stream` whenever it changes (e.g. after a `precedent.py record` or
-`rebuild` elsewhere). The UI never applies a change automatically — the
-canvas is your working set, not a live view. Instead, a "graph changed" badge
-appears in the header; clicking **refresh** re-fetches every node currently
-on the canvas, updates its properties, drops any that no longer exist (a
-`rebuild` reassigns internal ids, so this is expected and handled), and
-reconnects the edges among what's left. Nothing is auto-expanded.
+The server watches `journal.jsonl` — precedent's own append-only source of
+truth — and streams a Server-Sent Events frame over `/api/stream` whenever it
+changes (i.e. a `precedent.py record` happened, in this process or another).
+
+It deliberately does **not** watch `graph.db`. The underlying engine touches
+that file's mtime on every open, including a plain read, and this server
+opens a fresh handle per query — so `graph.db`'s own mtime moves constantly
+even when nothing was ever recorded, and using it as the change signal would
+raise the badge on ordinary browsing rather than on a real change.
+
+The UI never applies a change automatically — the canvas is your working
+set, not a live view. Instead, a "graph changed" badge appears in the
+header; clicking **refresh** re-fetches every node currently on the canvas,
+updates its properties, drops any that no longer exist, and reconnects the
+edges among what's left. Nothing is auto-expanded.
+
+One thing this deliberately does **not** cover: `precedent.py rebuild`
+replays the existing journal into a fresh `graph.db` without appending to
+the journal — it only renumbers each node's internal id — so a bare rebuild
+does not raise this badge. That's fine, not an oversight: no decision
+changed, and the refresh path above already tolerates a renumbered id via a
+404 and a "graph was rebuilt" notice.
 
 ## Security boundary
 

@@ -35,8 +35,30 @@ class CypherIn(BaseModel):
     max_rows: int = MAX_ROWS
 
 
+def _stamp_str(stamp: tuple[int, int]) -> str:
+    """Wire form of a Store.change_stamp() tuple: `"<mtime_ns>:<size>"`.
+
+    A plain string keeps both components significant to an equality check —
+    projecting to mtime_ns alone would miss a change that lands within the
+    same nanosecond tick but a different size (coarse-clock filesystems).
+    Used identically by /api/meta and /api/stream so the two endpoints agree
+    on what "changed" means.
+    """
+    return f"{stamp[0]}:{stamp[1]}"
+
+
 async def mtime_events(store: Store, interval: float = 1.0) -> AsyncIterator[str]:
-    """Yield an SSE frame whenever graph.db's mtime changes.
+    """Yield an SSE frame whenever the store's journal-derived change stamp moves.
+
+    Polls Store.change_stamp() — journal.jsonl's mtime_ns + size — NOT
+    graph.db's mtime. graphdblite bumps graph.db's mtime on every open, even
+    for a pure read, so with a fresh Database handle per query (Store.query)
+    graph.db's own mtime moves constantly while nothing was ever recorded;
+    that would fire this stream on ordinary browsing rather than on a real
+    change. The journal is append-only and this process never opens it, so
+    it only moves on a real `precedent.py record` from elsewhere. A bare
+    `precedent.py rebuild` does not move it either — see
+    Store.change_stamp's docstring for why that's deliberate.
 
     Module level and interval-injectable so it can be tested directly:
     an infinite generator can never be read through TestClient, which
@@ -44,10 +66,10 @@ async def mtime_events(store: Store, interval: float = 1.0) -> AsyncIterator[str
     """
     last = None
     while True:
-        now = store.mtime()
+        now = store.change_stamp()
         if now != last:
             last = now
-            yield f"data: {json.dumps({'mtime': now})}\n\n"
+            yield f"data: {json.dumps({'mtime': _stamp_str(now)})}\n\n"
         await asyncio.sleep(interval)
 
 
@@ -67,7 +89,9 @@ def create_app(home: pathlib.Path) -> FastAPI:
         return {
             "labels": {r["label"]: r["n"] for r in store.query(LABEL_COUNTS)},
             "edge_types": {r["type"]: r["n"] for r in store.query(EDGE_COUNTS)},
-            "mtime": store.mtime(),
+            # Same journal-derived source /api/stream watches — see
+            # Store.change_stamp's docstring for why this isn't graph.db's mtime.
+            "mtime": _stamp_str(store.change_stamp()),
         }
 
     @app.get("/api/search")
