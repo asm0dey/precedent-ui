@@ -59,6 +59,11 @@ class Store:
             return db.query(cypher, params or {})
         finally:
             db.close()
+            # Drop the frame's reference too: on the error path the raised
+            # exception's traceback keeps this frame alive, and a lingering
+            # (even closed) handle is finalised on whatever thread GC runs on,
+            # where pyo3 raises because Database is unsendable.
+            del db
 
     def close(self) -> None:
         # No longer a cached handle to close. This method is retained for
