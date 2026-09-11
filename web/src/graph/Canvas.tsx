@@ -11,29 +11,7 @@ import { LayoutForceAtlas2Control } from "@react-sigma/layout-forceatlas2";
 import { MiniMap } from "@react-sigma/minimap";
 import Graph from "graphology";
 import { useEffect, useRef } from "react";
-import type { GEdge, GNode } from "../classify";
-import { captionOf, tokens, type Mode } from "../skin";
-
-/** Merge into the live instance — never rebuild it. Growth is the interaction. */
-export function mergeInto(graph: Graph, nodes: GNode[], edges: GEdge[], mode: Mode) {
-  const t = tokens(mode);
-  for (const n of nodes) {
-    graph.mergeNode(String(n.id), {
-      label: captionOf(n),
-      size: 8,
-      color: t.labelColor[n.labels[0]] ?? t.edge,
-      nodeLabel: n.labels[0],
-      status: (n.props.status as string) ?? "active",
-      x: Math.random(),
-      y: Math.random(),
-    });
-  }
-  for (const e of edges) {
-    if (graph.hasNode(String(e.src)) && graph.hasNode(String(e.dst))) {
-      graph.mergeEdgeWithKey(e.id, String(e.src), String(e.dst), { edgeType: e.type });
-    }
-  }
-}
+import { tokens, type Mode } from "../skin";
 
 /** Theme and hover live in the reducers, so a theme flip never rewrites attributes. */
 function Reducers({ mode, hovered }: { mode: Mode; hovered: string | null }) {
