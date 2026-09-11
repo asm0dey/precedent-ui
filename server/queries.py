@@ -69,3 +69,36 @@ def caption(node: dict) -> str:
     field = CAPTION_FIELD.get(label)
     value = node["props"].get(field) if field else None
     return str(value) if value is not None else f"{label} #{node['id']}"
+
+
+def search_cypher(label: str, field: str) -> str:
+    """One query per label/field. No UNION: ranking happens in Python anyway,
+    and per-label queries keep the dialect surface small."""
+    return (
+        f"MATCH (n:{label}) WHERE toLower(toString(n.{field})) CONTAINS $q "
+        f"RETURN n AS n LIMIT $cap"
+    )
+
+
+DEGREE_FOR_IDS = (
+    "MATCH (n)-[r]-() WHERE id(n) IN $ids RETURN id(n) AS id, count(r) AS degree"
+)
+
+
+def rank(node: dict, needle: str) -> int:
+    cap = caption(node).lower()
+    if cap == needle:
+        return 0
+    if cap.startswith(needle):
+        return 1
+    if needle in cap:
+        return 2
+    return 3
+
+
+def subtitle(node: dict) -> str:
+    label = node["labels"][0] if node["labels"] else "?"
+    props = node["props"]
+    if label == "Decision":
+        return f"{props.get('scope', '?')} · {props.get('status', '?')}"
+    return label

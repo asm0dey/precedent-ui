@@ -33,6 +33,43 @@ def create_app(home: pathlib.Path) -> FastAPI:
             "mtime": store.mtime(),
         }
 
+    @app.get("/api/search")
+    def search(q: str, limit: int = 50) -> list[dict]:
+        needle = q.strip().lower()
+        if not needle:
+            return []
+        # Scan each label's searchable fields; a node found by several fields
+        # is kept once, at its best rank.
+        best: dict[int, tuple[int, dict]] = {}
+        for label, fields in queries.SEARCH_FIELDS.items():
+            for field in fields:
+                cypher = queries.search_cypher(label, field)
+                for row in store.query(cypher, {"q": needle, "cap": limit * 4}):
+                    node = queries.node_out(row["n"])
+                    r = queries.rank(node, needle) if field == queries.CAPTION_FIELD.get(label) else 3
+                    prior = best.get(node["id"])
+                    if prior is None or r < prior[0]:
+                        best[node["id"]] = (r, node)
+
+        degrees = {
+            row["id"]: row["degree"]
+            for row in store.query(queries.DEGREE_FOR_IDS, {"ids": list(best)})
+        } if best else {}
+
+        ordered = sorted(
+            best.values(), key=lambda rn: (rn[0], -degrees.get(rn[1]["id"], 0), rn[1]["id"])
+        )
+        return [
+            {
+                "id": node["id"],
+                "labels": node["labels"],
+                "caption": queries.caption(node),
+                "sub": queries.subtitle(node),
+                "degree": degrees.get(node["id"], 0),
+            }
+            for _, node in ordered[:limit]
+        ]
+
     return app
 
 
