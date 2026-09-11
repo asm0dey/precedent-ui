@@ -38,8 +38,10 @@ export default function App() {
   const roots = useRef(new Set<string>()).current;
   const pinned = useRef(new Set<string>()).current;
   // Nodes expand-all has already spent a budget on, so a second double-click
-  // collapses instead of expanding again.
-  const expanded = useRef(new Set<number>()).current;
+  // collapses instead of expanding again. Written ONLY by expandAll: a
+  // single-type expansion from a detail chip or the context menu must not turn
+  // the next double-click into a collapse that removes what was just added.
+  const expandedAll = useRef(new Set<number>()).current;
   const [hovered, setHovered] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [, setVersion] = useState(0); // bump to re-render after a merge
@@ -86,7 +88,7 @@ export default function App() {
       if (graph.hasNode(key)) graph.dropNode(key);
       roots.delete(key);
       pinned.delete(key);
-      expanded.delete(id);
+      expandedAll.delete(id);
       if (selected === id) setSelected(null);
     }
     let edgesFailed = false;
@@ -108,7 +110,6 @@ export default function App() {
     mergeInto(graph, r.nodes, r.edges, mode); // NOT roots: expansion is derived
     const shown = offset + r.nodes.length;
     setMore((m) => ({ ...m, [`${id}-${type}-${dir}`]: Math.max(0, r.total - shown) }));
-    expanded.add(id);
     await completeEdges(); // without this, separately-expanded nodes never show edges between them
   }
 
@@ -127,7 +128,7 @@ export default function App() {
       left += a.remaining;
     }
     await completeEdges();
-    expanded.add(id);
+    expandedAll.add(id);
     if (left > 0) toast(`added ${added} of ${added + left} — use the type chips for the rest`);
   }
 
@@ -148,7 +149,7 @@ export default function App() {
     const edges = graphEdges().filter((e) => e.src !== key && e.dst !== key);
     const keep = survivors(edges, present, roots, pinned);
     for (const n of present) if (!keep.has(n) && n !== key) graph.dropNode(n);
-    expanded.delete(id);
+    expandedAll.delete(id);
     setVersion((v) => v + 1);
   }
 
@@ -166,7 +167,7 @@ export default function App() {
     if (graph.hasNode(key)) graph.dropNode(key);
     roots.delete(key);
     pinned.delete(key);
-    expanded.delete(id);
+    expandedAll.delete(id);
     if (selected === id) setSelected(null);
     setVersion((v) => v + 1);
   }
@@ -181,7 +182,7 @@ export default function App() {
   }
 
   async function onDoubleClick(id: number) {
-    if (expanded.has(id)) collapse(id);
+    if (expandedAll.has(id)) collapse(id);
     else await expandAll(id);
   }
 
