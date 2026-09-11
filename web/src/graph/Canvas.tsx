@@ -3,6 +3,7 @@ import {
   ControlsContainer,
   FullScreenControl,
   ZoomControl,
+  useCamera,
   useSigma,
   useRegisterEvents,
 } from "@react-sigma/core";
@@ -76,20 +77,42 @@ function Reducers({ mode, hovered }: { mode: Mode; hovered: string | null }) {
  *
  * Pinned nodes carry `fixed: true` and are left where you put them.
  */
-function AutoLayout({ version }: { version: number }) {
+const SETTLE_MS = 1500;
+/** How far in to zoom when centring on a node. Lower is closer. */
+const FOCUS_RATIO = 0.25;
+
+function AutoLayout({ version, focus }: { version: number; focus: Focus | null }) {
   const { start, stop } = useWorkerLayoutForceAtlas2({ settings: { slowDown: 10 } });
+  const { goto } = useCamera();
+  const sigma = useSigma();
+  // Read inside the settle callback rather than as an effect dependency: a new
+  // focus must not restart the layout, and a merge must not re-centre the camera.
+  const pending = useRef<Focus | null>(null);
+  pending.current = focus;
 
   useEffect(() => {
     start();
-    const timer = setTimeout(stop, 1500);
+    const timer = setTimeout(() => {
+      stop();
+      // Centre only once the layout has finished moving things. Doing it at
+      // merge time would aim the camera at the random position a new node is
+      // seeded with, and land on empty space a second later.
+      const want = pending.current;
+      if (!want) return;
+      const d = sigma.getNodeDisplayData(String(want.id));
+      if (d) goto({ x: d.x, y: d.y, ratio: FOCUS_RATIO }, { duration: 600 });
+    }, SETTLE_MS);
     return () => {
       clearTimeout(timer);
       stop();
     };
-  }, [version, start, stop]);
+  }, [version, start, stop, goto, sigma]);
 
   return null;
 }
+
+/** A request to centre the camera on a node. */
+export type Focus = { id: number; nonce: number };
 
 export type CanvasHandlers = {
   onSelect: (id: number) => void;
@@ -174,6 +197,7 @@ export function Canvas({
   mode,
   hovered,
   version,
+  focus,
   onSelect,
   onDoubleClick,
   onContextMenu,
@@ -185,6 +209,9 @@ export function Canvas({
   hovered: string | null;
   /** Bumped on every merge; drives the settle-after-change layout run. */
   version: number;
+  /** Node to centre on once the layout settles. The nonce lets the same node be
+   * re-focused — searching for it twice should move the camera twice. */
+  focus: Focus | null;
 } & CanvasHandlers) {
   const t = tokens(mode);
   return (
@@ -194,7 +221,7 @@ export function Canvas({
       settings={{ allowInvalidContainer: true, defaultEdgeType: "arrow", labelDensity: 0.2 }}
     >
       <Reducers mode={mode} hovered={hovered} />
-      <AutoLayout version={version} />
+      <AutoLayout version={version} focus={focus} />
       <Events
         onSelect={onSelect}
         onDoubleClick={onDoubleClick}

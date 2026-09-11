@@ -4,7 +4,7 @@ import "./App.css";
 import { edgesBetween, expand, getNode, runCypher, type Degree, type Hit } from "./api";
 import { cellsToGraph, type GEdge, type GNode } from "./classify";
 import { allocate } from "./graph/budget";
-import { Canvas } from "./graph/Canvas";
+import { Canvas, type Focus } from "./graph/Canvas";
 import { survivors } from "./graph/collapse";
 import { ContextMenu, type ContextMenuAction } from "./graph/ContextMenu";
 import { mergeInto } from "./graph/merge";
@@ -68,6 +68,8 @@ export default function App() {
   // Remaining count per "<id>-<type>-<dir>" expansion, for the "+N more" chip affordance.
   const [more, setMore] = useState<Record<string, number>>({});
   const [menu, setMenu] = useState<Menu | null>(null);
+  // Camera target. The nonce makes re-picking the same hit move the camera again.
+  const [cameraFocus, setCameraFocus] = useState<Focus | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   // A journal-derived change stamp string ("<mtime_ns>:<size>"), not a
   // numeric timestamp — see server/store.py's Store.change_stamp().
@@ -271,6 +273,9 @@ export default function App() {
     mergeInto(graph, [n], [], mode);
     roots.add(String(hit.id)); // asked for by name, so never auto-removed
     setSelected(hit.id);
+    // Centre on it once the layout settles. Without this the hit is merged into
+    // a canvas of a couple of hundred nodes and you have to go and find it.
+    setCameraFocus((f) => ({ id: hit.id, nonce: (f?.nonce ?? 0) + 1 }));
     await completeEdges(); // connect it to whatever is already loaded
   }
 
@@ -357,6 +362,7 @@ export default function App() {
           mode={mode}
           hovered={hovered}
           version={version}
+          focus={cameraFocus}
           onSelect={setSelected}
           onDoubleClick={onDoubleClick}
           onContextMenu={onContextMenu}
