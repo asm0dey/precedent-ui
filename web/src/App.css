@@ -127,6 +127,158 @@
   border-left: 1px solid var(--border);
 }
 
+.detail-empty {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail.superseded {
+  opacity: var(--superseded-alpha);
+}
+
+.detail h2 {
+  margin: 8px 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.detail .statement {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+/* The rationale is the reason the tool exists: dominant, not a property row. */
+.detail .rationale {
+  margin: 4px 0 14px;
+  padding: 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.detail .rationale h3 {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.detail .rationale p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.detail .despite {
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--warn);
+  background: var(--bg);
+}
+
+.detail .despite h3 {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.detail .despite p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.detail dl.meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 8px;
+  margin: 0 0 14px;
+  font-size: 12px;
+}
+
+.detail dl.meta dt {
+  color: var(--text-dim);
+}
+
+.detail dl.meta dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.detail dd.status-superseded {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.detail .expand {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.detail .expand h3 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.expand-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.expand-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip-expand {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chip-expand:hover,
+.chip-expand:focus-visible {
+  border-color: var(--accent);
+}
+
+.more-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+}
+
 .panel-cypher {
   grid-area: cypher;
   border-top: 1px solid var(--border);

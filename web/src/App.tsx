@@ -1,13 +1,15 @@
 import Graph from "graphology";
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
-import { edgesBetween, getNode, runCypher, type Hit } from "./api";
+import { edgesBetween, expand, getNode, runCypher, type Hit } from "./api";
 import { cellsToGraph } from "./classify";
 import { Canvas, mergeInto } from "./graph/Canvas";
+import { Detail } from "./panels/Detail";
 import { Search } from "./panels/Search";
 import { useTheme, type Pref } from "./theme";
 
 const DEFAULT_VIEW = "MATCH (p:Project)-[r:TAGGED]->(t:Tag) RETURN p AS p, r AS r, t AS t";
+const PAGE = 50;
 
 const THEME_OPTIONS: { pref: Pref; label: string }[] = [
   { pref: "system", label: "System" },
@@ -22,12 +24,22 @@ export default function App() {
   const [hovered] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [, setVersion] = useState(0); // bump to re-render after a merge
+  // Remaining count per "<id>-<type>-<dir>" expansion, for the "+N more" chip affordance.
+  const [more, setMore] = useState<Record<string, number>>({});
 
   async function completeEdges() {
     const ids = graph.nodes().map(Number);
     const { edges } = await edgesBetween(ids);
     mergeInto(graph, [], edges, mode);
     setVersion((v) => v + 1);
+  }
+
+  async function expandOne(id: number, type: string, dir: "out" | "in", offset = 0) {
+    const r = await expand(id, { type, dir, limit: PAGE, offset });
+    mergeInto(graph, r.nodes, r.edges, mode); // NOT roots: expansion is derived
+    const shown = offset + r.nodes.length;
+    setMore((m) => ({ ...m, [`${id}-${type}-${dir}`]: Math.max(0, r.total - shown) }));
+    await completeEdges(); // without this, separately-expanded nodes never show edges between them
   }
 
   async function onPick(hit: Hit) {
@@ -73,13 +85,14 @@ export default function App() {
       <main className="panel-canvas">
         <Canvas graph={graph} mode={mode} hovered={hovered} />
       </main>
-      {
-        /* data-selected has no visual meaning: it exists only to give `selected`
-           a read so noUnusedLocals doesn't fail the build. Task 11 replaces this
-           seam by having <Detail /> actually consume `selected`. */
-      }
-      <aside className="panel panel-detail" data-selected={selected ?? undefined}>
-        {/* Task 11: <Detail /> */}
+      <aside className="panel panel-detail">
+        <Detail
+          nodeId={selected}
+          more={more}
+          onExpand={(type, dir, offset) => {
+            if (selected !== null) expandOne(selected, type, dir, offset);
+          }}
+        />
       </aside>
       <footer className="panel-cypher">{/* Task 13: <Cypher /> */}</footer>
     </div>

@@ -5,6 +5,8 @@
   --text: #14161a;
   --text-dim: #6b7280;
   --accent: #2f6fd0;
+  --warn: #c2410c;
+  --superseded-alpha: 0.35;
 
   color-scheme: light dark;
   font: 15px/1.4 system-ui, "Segoe UI", Roboto, sans-serif;
@@ -21,6 +23,10 @@
   --text: #e8eaed;
   --text-dim: #a1a8b3;
   --accent: #7aa9f0;
+  --warn: #f08a4b;
+  /* superseded needs a *higher* alpha on a dark ground to still read as faded
+     rather than as invisible — mirrors skin.ts's statusAlpha. */
+  --superseded-alpha: 0.5;
 }
 
 *,
