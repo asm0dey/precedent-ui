@@ -24,17 +24,21 @@ function Reducers({ mode, hovered }: { mode: Mode; hovered: string | null }) {
         color: t.labelColor[data.nodeLabel as string] ?? t.edge,
         zIndex: data.status === "superseded" ? 0 : 1,
       };
-      if (!hovered) return base;
-      const neighbours = sigma.getGraph().neighbors(hovered);
+      // `hovered` can outlive the node it names: sigma emits no `leaveNode`
+      // when a node is removed, and hiding a hovered node (the context menu
+      // swallows the mousemove) would otherwise raise NotFoundGraphError here
+      // once per remaining node.
+      const graph = sigma.getGraph();
+      if (!hovered || !graph.hasNode(hovered)) return base;
+      const neighbours = graph.neighbors(hovered);
       if (node === hovered || neighbours.includes(node)) return { ...base, highlighted: true };
       return { ...base, color: t.edge, label: "" };
     });
     sigma.setSetting("edgeReducer", (edge, data) => {
       const base = { ...data, color: t.edge };
-      if (!hovered) return base;
-      return sigma.getGraph().extremities(edge).includes(hovered)
-        ? base
-        : { ...base, hidden: true };
+      const graph = sigma.getGraph();
+      if (!hovered || !graph.hasNode(hovered)) return base;
+      return graph.extremities(edge).includes(hovered) ? base : { ...base, hidden: true };
     });
     sigma.refresh();
   }, [sigma, mode, hovered]);
