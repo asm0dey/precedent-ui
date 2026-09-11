@@ -223,13 +223,6 @@ export default function App() {
           onHover={setHovered}
           onPin={(id) => pinned.add(id)}
         />
-        <ContextMenu
-          at={menu?.at ?? null}
-          nodeId={menu?.nodeId ?? -1}
-          degrees={menu?.degrees ?? []}
-          onAction={onMenuAction}
-          onClose={() => setMenu(null)}
-        />
         {toastMsg && <div className="canvas-toast">{toastMsg}</div>}
       </main>
       <aside className="panel panel-detail">
@@ -239,9 +232,21 @@ export default function App() {
           onExpand={(type, dir, offset) => {
             if (selected !== null) expandOne(selected, type, dir, offset);
           }}
+          onOpenMenu={(x, y) => {
+            if (selected !== null) onContextMenu(selected, x, y);
+          }}
         />
       </aside>
       <footer className="panel-cypher">{/* Task 13: <Cypher /> */}</footer>
+      {/* position: fixed — opened from either a canvas right-click or the Detail
+          panel's keyboard-reachable actions button, so it isn't scoped to one panel. */}
+      <ContextMenu
+        at={menu?.at ?? null}
+        nodeId={menu?.nodeId ?? -1}
+        degrees={menu?.degrees ?? []}
+        onAction={onMenuAction}
+        onClose={() => setMenu(null)}
+      />
     </div>
   );
 }

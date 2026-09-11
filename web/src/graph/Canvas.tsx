@@ -93,7 +93,11 @@ function Events({ onSelect, onDoubleClick, onContextMenu, onHover, onPin }: Canv
       doubleClickNode: (e) => onDoubleClick(Number(e.node)),
       rightClickNode: (e) => {
         e.preventSigmaDefault();
-        onContextMenu(Number(e.node), e.event.x, e.event.y);
+        // e.event.x/y are container-relative; the menu now positions with a fixed
+        // viewport coordinate (it also opens from the Detail panel's actions button,
+        // outside the canvas container), so convert to viewport space here.
+        const rect = sigma.getContainer().getBoundingClientRect();
+        onContextMenu(Number(e.node), rect.left + e.event.x, rect.top + e.event.y);
       },
       enterNode: (e) => onHover(e.node),
       leaveNode: () => onHover(null),

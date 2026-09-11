@@ -315,7 +315,7 @@
 }
 
 .context-menu {
-  position: absolute;
+  position: fixed;
   z-index: 20;
   margin: 0;
   padding: 4px;
@@ -353,29 +353,47 @@
   background: var(--border);
 }
 
-.context-menu li.submenu {
+.context-menu li[role="menuitem"]:focus {
+  background: var(--accent);
+  color: #fff;
+  outline: none;
+}
+
+.context-menu li.menu-heading {
+  padding: 4px 10px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.context-menu li.menu-heading:hover {
+  background: none;
+}
+
+.detail-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.context-menu li.submenu > ul {
-  display: none;
-  position: absolute;
-  top: -4px;
-  left: 100%;
-  margin: 0;
-  padding: 4px;
-  list-style: none;
-  min-width: 140px;
+.detail-actions-btn {
+  padding: 4px 10px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--panel-bg);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
 }
 
-.context-menu li.submenu:hover > ul {
-  display: block;
+.detail-actions-btn:hover,
+.detail-actions-btn:focus-visible {
+  border-color: var(--accent);
 }
 
 .canvas-toast {

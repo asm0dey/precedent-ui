@@ -5,10 +5,12 @@ export function Detail({
   nodeId,
   more,
   onExpand,
+  onOpenMenu,
 }: {
   nodeId: number | null;
   more: Record<string, number>;
   onExpand: (type: string, dir: "out" | "in", offset?: number) => void;
+  onOpenMenu: (x: number, y: number) => void;
 }) {
   const [n, setN] = useState<NodeDetail | null>(null);
 
@@ -38,7 +40,19 @@ export function Detail({
 
   return (
     <div className={`detail${superseded ? " superseded" : ""}`}>
-      <span className={`chip ${label}`}>{label}</span>
+      <div className="detail-header">
+        <span className={`chip ${label}`}>{label}</span>
+        <button
+          type="button"
+          className="detail-actions-btn"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            onOpenMenu(r.left, r.bottom);
+          }}
+        >
+          actions ▾
+        </button>
+      </div>
       <h2>{n.caption}</h2>
       {label === "Decision" && (
         <>
