@@ -283,10 +283,129 @@
   grid-area: cypher;
   border-top: 1px solid var(--border);
   min-height: 44px;
+  max-height: 40vh;
+  overflow: auto;
   padding: 8px 16px;
   color: var(--text-dim);
   font-size: 13px;
   background: var(--panel-bg);
+}
+
+.cypher {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cypher-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.cypher-controls label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.cypher-controls select {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.cypher-input {
+  flex: 1 1 100%;
+  min-width: 240px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+}
+
+.cypher-controls button {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cypher-controls button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.cypher-error {
+  margin: 0;
+  padding: 6px 8px;
+  border-left: 3px solid #e5484d;
+  background: var(--bg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.warn {
+  color: var(--warn);
+  font-size: 12px;
+}
+
+.cypher-add {
+  align-self: flex-start;
+  padding: 5px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cypher-table-wrap {
+  overflow: auto;
+  max-height: 220px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.cypher-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+
+.cypher-table th,
+.cypher-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cypher-table th {
+  position: sticky;
+  top: 0;
+  background: var(--panel-bg);
+  color: var(--text-dim);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .theme-toggle {

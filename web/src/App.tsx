@@ -2,11 +2,12 @@ import Graph from "graphology";
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { edgesBetween, expand, getNode, runCypher, type Degree, type Hit } from "./api";
-import { cellsToGraph } from "./classify";
+import { cellsToGraph, type GEdge, type GNode } from "./classify";
 import { allocate } from "./graph/budget";
 import { Canvas, mergeInto } from "./graph/Canvas";
 import { survivors } from "./graph/collapse";
 import { ContextMenu, type ContextMenuAction } from "./graph/ContextMenu";
+import { Cypher } from "./panels/Cypher";
 import { Detail } from "./panels/Detail";
 import { Search } from "./panels/Search";
 import { useTheme, type Pref } from "./theme";
@@ -181,6 +182,15 @@ export default function App() {
     await completeEdges(); // connect it to whatever is already loaded
   }
 
+  /** Cypher console results are asked-for-by-name, exactly like a search hit —
+   * they become roots so Task 12's collapse never removes them. */
+  async function onCypherAdd(nodes: GNode[], edges: GEdge[]) {
+    mergeInto(graph, nodes, edges, mode);
+    nodes.forEach((n) => roots.add(String(n.id)));
+    setVersion((v) => v + 1);
+    await completeEdges(); // connect them to whatever is already loaded
+  }
+
   useEffect(() => {
     runCypher(DEFAULT_VIEW).then(({ rows }) => {
       const { nodes, edges } = cellsToGraph(rows);
@@ -239,7 +249,9 @@ export default function App() {
           menuOpen={menu !== null && menu.nodeId === selected}
         />
       </aside>
-      <footer className="panel-cypher">{/* Task 13: <Cypher /> */}</footer>
+      <footer className="panel-cypher">
+        <Cypher onAdd={onCypherAdd} />
+      </footer>
       {/* position: fixed — opened from either a canvas right-click or the Detail
           panel's keyboard-reachable actions button, so it isn't scoped to one panel. */}
       <ContextMenu
