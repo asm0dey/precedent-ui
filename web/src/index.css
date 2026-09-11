@@ -63,4 +63,10 @@ body {
   --sigma-controls-background-color-hover: var(--border);
   --sigma-controls-border-color: var(--border);
   --sigma-controls-color: var(--text);
+
+  /* Same story for the canvas background. The main canvas hides this because
+     SigmaContainer sets its own background via the `style` prop, but the minimap
+     mounts a second `div.react-sigma` that only ever reads this variable — so in
+     dark theme it rendered as a white slab in the corner. */
+  --sigma-background-color: var(--bg);
 }
