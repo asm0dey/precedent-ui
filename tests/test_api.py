@@ -253,3 +253,12 @@ def test_mtime_events_emits_only_on_change(store):
         await gen.aclose()
 
     asyncio.run(scenario())
+
+
+def test_cypher_clamps_max_rows_to_at_least_one(client):
+    """max_rows is client-controlled; unclamped at the bottom, `0` returned no
+    rows at all while claiming `truncated: true`."""
+    body = client.post(
+        "/api/cypher", json={"query": "MATCH (n) RETURN n AS n", "max_rows": 0}
+    ).json()
+    assert len(body["rows"]) == 1

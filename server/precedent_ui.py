@@ -165,16 +165,12 @@ def create_app(home: pathlib.Path) -> FastAPI:
         if type is not None and not VALID_TYPE.fullmatch(type):
             raise HTTPException(400, f"invalid edge type {type!r}")
 
-        # Resolve direction: use provided dir or None for undirected
-        resolved_dir = dir  # This is either "out", "in", or None
-
+        # `dir` is "out", "in", or None for undirected.
         nodes: dict[int, dict] = {}
         edges: dict[str, dict] = {}
-        total = store.query(
-            queries.expand_count_cypher(type, resolved_dir), {"id": node_id}
-        )[0]["n"]
+        total = store.query(queries.expand_count_cypher(type, dir), {"id": node_id})[0]["n"]
         rows = store.query(
-            queries.expand_cypher(type, resolved_dir),
+            queries.expand_cypher(type, dir),
             {"id": node_id, "limit": limit, "offset": offset},
         )
         for row in rows:
@@ -206,7 +202,11 @@ def create_app(home: pathlib.Path) -> FastAPI:
             rows = store.query(body.query, body.params)
         except GraphDBError as e:
             raise HTTPException(400, {"error": str(e), "type": type(e).__name__})
-        cap = min(body.max_rows, MAX_ROWS)
+        # Clamped at BOTH ends: max_rows is client-controlled, and an
+        # unclamped bottom made `max_rows: 0` return zero rows with
+        # `truncated: true` — a result that says "there was more" and shows
+        # none of it.
+        cap = min(max(body.max_rows, 1), MAX_ROWS)
         columns = list(rows[0].keys()) if rows else []
         return {
             "columns": columns,

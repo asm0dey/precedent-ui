@@ -65,11 +65,15 @@ export function Detail({
       {label === "Decision" && (
         <>
           {p.statement && <p className="statement">{p.statement}</p>}
-          {/* The rationale leads: the what is recoverable from the code, the why is not. */}
-          <section className="rationale">
-            <h3>rationale</h3>
-            <p>{p.rationale}</p>
-          </section>
+          {/* The rationale leads: the what is recoverable from the code, the why is not.
+              Omitted entirely when absent — an empty "rationale" heading reads as
+              "this decision has no reason", which is not what a missing field means. */}
+          {p.rationale && (
+            <section className="rationale">
+              <h3>rationale</h3>
+              <p>{p.rationale}</p>
+            </section>
+          )}
           {p.despite && (
             <section className="despite">
               <h3>despite precedent</h3>
