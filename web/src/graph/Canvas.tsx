@@ -101,6 +101,11 @@ function AutoLayout({
   // was zoomed in somewhere else; fitting afterwards is what makes the result
   // visible. Tracked by nonce so repeating the action refits.
   const lastFit = useRef(fit);
+  // Both camera moves are ONE-SHOT, consumed by nonce. Without this the focus
+  // target is sticky: every later settle — after an expansion, after a prune —
+  // re-centres on whatever was last searched for, so the camera keeps yanking
+  // back to an old node while you are working somewhere else.
+  const lastFocus = useRef(focus?.nonce ?? 0);
 
   useEffect(() => {
     start();
@@ -115,7 +120,8 @@ function AutoLayout({
         return;
       }
       const want = pending.current;
-      if (!want) return;
+      if (!want || want.nonce === lastFocus.current) return;
+      lastFocus.current = want.nonce;
       const d = sigma.getNodeDisplayData(String(want.id));
       if (d) goto({ x: d.x, y: d.y, ratio: FOCUS_RATIO }, { duration: 600 });
     }, SETTLE_MS);
