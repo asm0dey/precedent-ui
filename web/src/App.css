@@ -561,3 +561,11 @@
   font-size: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
+
+/* Offered but not applicable: kept visible and focusable, with the reason in
+   its title, rather than vanishing from the menu. */
+.context-menu li[aria-disabled="true"] {
+  color: var(--text-dim);
+  cursor: default;
+}
+

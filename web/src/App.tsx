@@ -163,12 +163,18 @@ export default function App() {
    * keep its just-expanded children reachable through it and collapse would remove
    * nothing. `id` itself is always kept — collapse shrinks its neighbourhood, it doesn't
    * remove the node that was double-clicked. */
-  function collapse(id: number) {
+  /** Exactly what `collapse(id)` would remove. Shared with the context menu so the
+   * offered action and the performed action can never disagree. */
+  function collapseDropSet(id: number): string[] {
     const key = String(id);
     const present = graph.nodes();
     const edges = graphEdges().filter((e) => e.src !== key && e.dst !== key);
     const keep = survivors(edges, present, roots, pinned);
-    const dropping = present.filter((n) => !keep.has(n) && n !== key);
+    return present.filter((n) => !keep.has(n) && n !== key);
+  }
+
+  function collapse(id: number) {
+    const dropping = collapseDropSet(id);
     for (const n of dropping) graph.dropNode(n);
     expandedAll.delete(id);
 
@@ -383,6 +389,7 @@ export default function App() {
         nodeId={menu?.nodeId ?? -1}
         degrees={menu?.degrees ?? []}
         caption={menu?.caption ?? ""}
+        collapseDrops={menu ? collapseDropSet(menu.nodeId).length : 0}
         onAction={onMenuAction}
         onClose={() => setMenu(null)}
       />

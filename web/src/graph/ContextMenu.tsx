@@ -13,7 +13,13 @@ export type ContextMenuAction =
 type Row =
   | { kind: "heading"; text: string }
   | { kind: "sep" }
-  | { kind: "item"; label: string; action: ContextMenuAction };
+  | {
+      kind: "item";
+      label: string;
+      action: ContextMenuAction;
+      disabled?: boolean;
+      title?: string;
+    };
 
 /**
  * A flat menu, not a nested submenu — the brief's illustrative markup nests "expand"
@@ -22,7 +28,7 @@ type Row =
  * main list (under a non-interactive "expand" heading) keeps one roving-focus model
  * for the whole menu: ArrowUp/Down and wraparound work the same everywhere.
  */
-function rowsFor(degrees: Degree[]): Row[] {
+function rowsFor(degrees: Degree[], collapseDrops: number): Row[] {
   return [
     { kind: "heading", text: "expand" },
     ...degrees.map(
@@ -34,7 +40,20 @@ function rowsFor(degrees: Degree[]): Row[] {
     ),
     { kind: "item", label: "all", action: { kind: "expand-all" } },
     { kind: "sep" },
-    { kind: "item", label: "collapse", action: { kind: "collapse" } },
+    {
+      kind: "item",
+      label: collapseDrops > 0 ? `collapse (${collapseDrops})` : "collapse",
+      action: { kind: "collapse" },
+      // Collapse only removes what would lose its path to a root. On a node
+      // whose neighbours are all reachable another way — a tag on two projects,
+      // say — it provably removes nothing, so it is offered as unavailable with
+      // the reason rather than silently doing nothing when clicked.
+      disabled: collapseDrops === 0,
+      title:
+        collapseDrops === 0
+          ? "nothing here would be removed — everything is reachable another way"
+          : `removes ${collapseDrops} node${collapseDrops === 1 ? "" : "s"}`,
+    },
     { kind: "sep" },
     { kind: "item", label: "pin / unpin", action: { kind: "pin" } },
     { kind: "item", label: "focus (hide others)", action: { kind: "focus" } },
@@ -49,6 +68,7 @@ export function ContextMenu({
   nodeId,
   degrees,
   caption,
+  collapseDrops,
   onAction,
   onClose,
 }: {
@@ -56,6 +76,9 @@ export function ContextMenu({
   nodeId: number;
   degrees: Degree[];
   caption: string;
+  /** How many nodes `collapse` would actually remove, computed by the caller
+   * from the live graph. Zero means the action is offered as unavailable. */
+  collapseDrops: number;
   onAction: (action: ContextMenuAction) => void;
   onClose: () => void;
 }) {
@@ -88,7 +111,7 @@ export function ContextMenu({
 
   if (!at) return null;
 
-  const rows = rowsFor(degrees);
+  const rows = rowsFor(degrees, collapseDrops);
   let itemIndex = 0;
 
   function onKeyDown(e: React.KeyboardEvent<HTMLUListElement>) {
@@ -132,6 +155,9 @@ export function ContextMenu({
           return <li key={`s-${i}`} role="separator" className="sep" />;
         }
         const idx = itemIndex++;
+        // A disabled item keeps its place in the roving-focus order and stays
+        // reachable, so a keyboard user can read why it is unavailable instead
+        // of it silently vanishing from the menu.
         return (
           <li
             key={`i-${i}`}
@@ -140,7 +166,13 @@ export function ContextMenu({
             }}
             role="menuitem"
             tabIndex={-1}
-            onClick={() => onAction(row.action)}
+            aria-disabled={row.disabled || undefined}
+            className={row.disabled ? "disabled" : undefined}
+            title={row.title}
+            onClick={() => {
+              if (row.disabled) return;
+              onAction(row.action);
+            }}
           >
             {row.label}
           </li>

@@ -5,10 +5,26 @@ requires-python = ">=3.12"
 dependencies = ["fastapi", "uvicorn", "graphdblite"]
 
 [dependency-groups]
-dev = ["pytest", "httpx"]
+dev = [
+    "pytest",
+    "httpx2>=2.12.0",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+# Warnings are findings here, not decoration: a RuntimeError hidden in this
+# summary once concealed a defect that made the server fail 27 of 30 concurrent
+# requests. So the run is kept clean, and anything we cannot fix is silenced
+# narrowly — by exact message and module — rather than by blanket-ignoring a
+# category that would also swallow the next real one.
+filterwarnings = [
+    "error::DeprecationWarning:server.*",
+    "error::DeprecationWarning:tests.*",
+    # starlette 1.6.0 (the latest) annotates its own TestClient with the
+    # deprecated `anyio.abc.BlockingPortal` alias at testclient.py:53. Nothing
+    # on our side reaches it and no newer starlette exists yet.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning:starlette.testclient",
+]
 
 [tool.uv]
 package = false
