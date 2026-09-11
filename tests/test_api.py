@@ -76,3 +76,45 @@ def test_node_degrees_are_split_by_type_and_direction(client):
 
 def test_node_404_for_a_missing_id(client):
     assert client.get("/api/node/99999999").status_code == 404
+
+
+def test_expand_returns_neighbours_and_connecting_edges(client):
+    nid = _first_decision_id(client)
+    body = client.get(f"/api/expand/{nid}", params={"type": "CHOSE", "dir": "out"}).json()
+    assert body["nodes"] and body["edges"]
+    assert all(e["type"] == "CHOSE" for e in body["edges"])
+    assert all(e["src"] == nid for e in body["edges"])
+
+
+def test_expand_reports_the_untruncated_total(client):
+    nid = _first_decision_id(client)
+    body = client.get(f"/api/expand/{nid}", params={"type": "CHOSE", "dir": "out", "limit": 1}).json()
+    assert len(body["nodes"]) == 1
+    assert body["total"] >= 1
+
+
+def test_expand_pages_by_offset(client):
+    nid = _first_decision_id(client)
+    args = {"type": "CHOSE", "dir": "out", "limit": 1}
+    first = client.get(f"/api/expand/{nid}", params=args).json()
+    second = client.get(f"/api/expand/{nid}", params={**args, "offset": 1}).json()
+    if second["nodes"]:
+        assert first["nodes"][0]["id"] != second["nodes"][0]["id"]
+
+
+def test_expand_without_a_type_returns_every_type(client):
+    nid = _first_decision_id(client)
+    types = {e["type"] for e in client.get(f"/api/expand/{nid}").json()["edges"]}
+    assert len(types) > 1
+
+
+def test_edges_between_finds_edges_among_loaded_nodes(client):
+    nid = _first_decision_id(client)
+    expanded = client.get(f"/api/expand/{nid}").json()
+    ids = [nid] + [n["id"] for n in expanded["nodes"]]
+    edges = client.post("/api/edges-between", json={"ids": ids}).json()["edges"]
+    assert len(edges) >= len(expanded["edges"])
+
+
+def test_edges_between_with_no_ids_returns_nothing(client):
+    assert client.post("/api/edges-between", json={"ids": []}).json()["edges"] == []

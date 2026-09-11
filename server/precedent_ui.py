@@ -6,12 +6,17 @@ import argparse
 import pathlib
 
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
 from server import queries
 from server.store import DEFAULT_HOME, Store
 
 LABEL_COUNTS = "MATCH (n) RETURN labels(n)[0] AS label, count(*) AS n ORDER BY n DESC"
 EDGE_COUNTS = "MATCH ()-[r]->() RETURN type(r) AS type, count(*) AS n ORDER BY n DESC"
+
+
+class IdsIn(BaseModel):
+    ids: list[int]
 
 
 def create_app(home: pathlib.Path) -> FastAPI:
@@ -89,6 +94,47 @@ def create_app(home: pathlib.Path) -> FastAPI:
             "key": queries.domain_key(n),
             "degrees": sorted(degrees, key=lambda d: (d["count"], d["type"])),
         }
+
+    @app.get("/api/expand/{node_id}")
+    def expand(
+        node_id: int,
+        type: str | None = None,
+        dir: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        directions = [dir] if dir in ("out", "in") else ["out", "in"]
+        nodes: dict[int, dict] = {}
+        edges: dict[str, dict] = {}
+        total = 0
+        for d in directions:
+            total += store.query(
+                queries.expand_count_cypher(type, d), {"id": node_id}
+            )[0]["n"]
+            rows = store.query(
+                queries.expand_cypher(type, d),
+                {"id": node_id, "limit": limit, "offset": offset},
+            )
+            for row in rows:
+                n = queries.node_out(row["m"])
+                nodes[n["id"]] = n
+                e = queries.rel_out(row["r"])
+                edges[e["id"]] = e
+        return {
+            "nodes": list(nodes.values()),
+            "edges": list(edges.values()),
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+        }
+
+    @app.post("/api/edges-between")
+    def edges_between(body: IdsIn) -> dict:
+        if not body.ids:
+            return {"edges": []}
+        rows = store.query(queries.EDGES_BETWEEN, {"ids": body.ids})
+        seen = {queries.rel_out(r["r"])["id"]: queries.rel_out(r["r"]) for r in rows}
+        return {"edges": list(seen.values())}
 
     return app
 
