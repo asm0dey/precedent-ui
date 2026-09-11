@@ -93,6 +93,22 @@ class Store:
             # where pyo3 raises because Database is unsendable.
             del db
 
+    def create_indexes(self) -> None:
+        """The one write this tool performs. Never called implicitly."""
+        from server.queries import SEARCH_FIELDS
+
+        if self.mtime() < 0:
+            raise FileNotFoundError(f"no graph at {self.path}")
+        db = Database(str(self.path))
+        try:
+            with db.begin_write() as tx:
+                for label, fields in SEARCH_FIELDS.items():
+                    tx.create_fulltext_index_word_multi(label, fields)
+                tx.commit()
+        finally:
+            db.close()
+            del db
+
     def close(self) -> None:
         # No longer a cached handle to close. This method is retained for
         # test fixture compatibility (tests/conftest.py calls it).

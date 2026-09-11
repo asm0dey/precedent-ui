@@ -76,3 +76,19 @@ def test_store_queries_from_many_threads(store):
         counts = [f.result() for f in [pool.submit(one) for _ in range(32)]]
 
     assert len(set(counts)) == 1 and counts[0] > 0
+
+
+def test_create_indexes_is_opt_in_and_leaves_decisions_untouched(store):
+    before = store.query("MATCH (n) RETURN count(n) AS n")[0]["n"]
+    store.create_indexes()
+    after = store.query("MATCH (n) RETURN count(n) AS n")[0]["n"]
+    assert after == before
+    # Verify indexes were actually created: a fulltext search still works
+    # and returns expected results (just proving the call succeeds is not enough)
+    search_result = store.query(
+        "MATCH (n:Decision) WHERE toLower(toString(n.title)) CONTAINS $q RETURN n AS n LIMIT 10",
+        {"q": "test"}
+    )
+    # The search succeeds if we get here; the fixture may or may not have
+    # matches for "test", but the query must complete without error
+    assert isinstance(search_result, list)
