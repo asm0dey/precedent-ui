@@ -1,6 +1,11 @@
 // Every query that asks what is true now filters status = 'active'.
 export const SAVED = [
   {
+    name: "the projects map (tags only)",
+    cypher: `MATCH (p:Project)-[r:TAGGED]->(t:Tag)
+RETURN p AS project, r AS r, t AS tag`,
+  },
+  {
     name: "kin by tag overlap",
     cypher: `MATCH (p:Project)-[:TAGGED]->(t:Tag)<-[:TAGGED]-(o:Project)
 WHERE p.id <> o.id

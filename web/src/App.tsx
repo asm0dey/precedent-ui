@@ -14,7 +14,24 @@ import { Detail } from "./panels/Detail";
 import { Search } from "./panels/Search";
 import { useTheme, type Pref } from "./theme";
 
-const DEFAULT_VIEW = "MATCH (p:Project)-[r:TAGGED]->(t:Tag) RETURN p AS p, r AS r, t AS t";
+/**
+ * What the canvas shows on open: every decision, what it chose, and where.
+ *
+ * An earlier version opened on Projects joined to their Tags. That is the
+ * filing system rather than the contents — you could not see a single decision
+ * or a single technology until you searched for one, in a tool whose whole
+ * point is the decisions. This shows the names you would recognise (`grafeo`,
+ * `graphdblite`, `bun`) straight away.
+ *
+ * Superseded decisions are deliberately NOT filtered out: the skin fades them,
+ * so a replaced choice and its replacement are both visible, which is the
+ * history worth seeing. "The projects map" is a saved query if you want the
+ * old view.
+ */
+const DEFAULT_VIEW = `MATCH (d:Decision)-[c:CHOSE]->(o:Option)
+MATCH (d)-[i:IN_PROJECT]->(p:Project)
+OPTIONAL MATCH (p)-[g:TAGGED]->(t:Tag)
+RETURN d AS d, c AS c, o AS o, i AS i, p AS p, g AS g, t AS t`;
 const PAGE = 50;
 const EXPAND_ALL_BUDGET = 100;
 
