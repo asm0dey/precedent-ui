@@ -231,23 +231,12 @@ def create_app(home: pathlib.Path) -> FastAPI:
 
 
 def main() -> None:
-    import sys
     import uvicorn
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--home", type=pathlib.Path, default=DEFAULT_HOME)
     ap.add_argument("--port", type=int, default=8899)
-    ap.add_argument("--index", action="store_true", help="Build fulltext indexes and exit")
     a = ap.parse_args()
-
-    if a.index:
-        store = Store(a.home)
-        try:
-            store.create_indexes()
-            print("Fulltext indexes created successfully")
-            sys.exit(0)
-        finally:
-            store.close()
 
     uvicorn.run(create_app(a.home), host="127.0.0.1", port=a.port)
 

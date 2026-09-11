@@ -2198,8 +2198,8 @@ Mount last, after every `/api` route, so the catch-all cannot shadow them.
 
 Cover: what it is, that it is read-only, `uv run python -m server.precedent_ui`,
 the dev loop (`bun run dev` + the proxy), `bun run build` for the single-process
-mode, `--home` for a relocated store, and the note that `--index` (Task 15) is
-the one write it can ever perform.
+mode, `--home` for a relocated store, and the note that the tool has no write
+path at all (see Task 15, which was implemented and then removed).
 
 - [ ] **Step 4: Verify the full loop by hand**
 
@@ -2220,60 +2220,27 @@ git commit -m "feat: live change badge, static serving, README"
 
 ---
 
-### Task 15: Optional fulltext indexes
+### Task 15: Optional fulltext indexes — IMPLEMENTED, THEN REMOVED
 
 **Files:**
 - Modify: `server/precedent_ui.py`, `server/store.py`, `tests/test_store.py`
 
-**Interfaces:**
-- Produces: `Store.create_indexes()` and a `--index` CLI flag; `Store.has_fulltext` used by search to pick its path.
+This task was built (`Store.create_indexes()`, a `--index` CLI flag, and a test)
+and then removed in the final review pass, because it was a pure no-op:
+graphdblite's fulltext indexes are reachable only through
+`CALL fts.search(label, property, query)`, and `server/queries.py`'s
+`search_cypher` unconditionally emits `toLower(toString(n.<field>)) CONTAINS $q`
+with no branch on index presence. The index was created and then never read.
+`Store.has_fulltext` — named in the original interface list — was never built.
 
-This is the **one** write this tool can ever perform. It creates fulltext
-indexes and touches no decision data. It is never implicit and is off by
-default.
+Removing it also removed the only `begin_write()` in the codebase, so the tool
+now has no write path at all.
 
-- [ ] **Step 1: Write the failing test**
-
-```python
-def test_create_indexes_is_opt_in_and_leaves_decisions_untouched(store):
-    before = store.query("MATCH (n) RETURN count(n) AS n")[0]["n"]
-    store.create_indexes()
-    after = store.query("MATCH (n) RETURN count(n) AS n")[0]["n"]
-    assert after == before
-```
-
-- [ ] **Step 2: Run it to verify it fails**
-
-Run: `uv run pytest tests/test_store.py -v`
-Expected: FAIL — `Store` has no attribute `create_indexes`
-
-- [ ] **Step 3: Implement**
-
-```python
-    def create_indexes(self) -> None:
-        """The one write this tool performs. Never called implicitly."""
-        from server.queries import SEARCH_FIELDS
-
-        with self._handle().begin_write() as tx:
-            for label, fields in SEARCH_FIELDS.items():
-                tx.create_fulltext_index_word_multi(label, fields)
-            tx.commit()
-```
-
-Add `--index` to `main()`: when passed, build the indexes, print what was
-created, and exit without starting the server.
-
-- [ ] **Step 4: Run the tests to verify they pass**
-
-Run: `uv run pytest -v`
-Expected: all pass
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add server/ tests/
-git commit -m "feat: opt-in fulltext indexes for large stores"
-```
+What it would take to build it for real, if a store ever outgrows the scan, is
+recorded in the spec's *search* section: per-label/field index-presence probing
+(the engine reports a missing index only by raising, and `CALL db.labels()` is
+`ProcedureNotFound`, so there is no catalogue to ask) plus a fallback to the
+current scan.
 
 ---
 

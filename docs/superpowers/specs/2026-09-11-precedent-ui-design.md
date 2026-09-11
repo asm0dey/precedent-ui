@@ -24,11 +24,13 @@ knew to ask. Seeing the graph answers the ones you did not.
 
 ## Non-goals
 
-- **No writes to the decision record.** Recording a decision belongs in the
-  agent conversation, where the rationale is captured in the user's own words.
-  A form cannot do that, and a wrong entry is worse than a missing one. The one
-  write this tool can ever perform is the opt-in `--index` flag, which creates
-  fulltext indexes and touches no decision data (see *search*, below).
+- **No writes to the decision record — no writes at all.** Recording a decision
+  belongs in the agent conversation, where the rationale is captured in the
+  user's own words. A form cannot do that, and a wrong entry is worse than a
+  missing one. This tool holds no write path whatsoever: it never calls
+  `begin_write()`, so read-only is a property of the code as well as of the
+  engine (see *search*, below, for the index-building flag that was cut and
+  what it would take to reinstate it).
 - No whole-graph render. There is no "show everything" button, at any size.
 - No auth, no multi-user, no hosting. Localhost tool.
 - Not a generic graphdblite browser. It knows this schema. (A generic one is a
@@ -173,11 +175,27 @@ label: `Decision.title|statement|rationale`, `Project.name|id`, `Tag.name`,
 Ranking: exact match on the caption field first, then prefix, then substring,
 then by degree descending. Ties broken by `__id` so paging is stable.
 
-Scale note: this is a scan. On a store large enough for it to hurt, an opt-in
-`--index` flag creates graphdblite fulltext indexes
-(`create_fulltext_index_word_multi`) once, and search uses them when present.
-That flag is the **one** write this tool can perform, it is never implicit, and
-it is off by default.
+Scale note: this is a scan, and it stays one. An earlier `--index` flag that
+called `create_fulltext_index_word_multi` was removed as a pure no-op: creating
+the index changed nothing, because graphdblite's fulltext indexes are reachable
+*only* through `CALL fts.search(label, property, query)`, and `search_cypher`
+unconditionally emits `toLower(toString(n.<field>)) CONTAINS $q`. The index was
+built and never read.
+
+If a store ever grows large enough for the scan to hurt, building it back means
+more than restoring the flag:
+
+- keep the index-creation call (`create_fulltext_index_word_multi` per label +
+  field set), and
+- rewrite search to issue `CALL fts.search(<label>, <field>, $q)`, and
+- probe index presence per label/field before doing so — the engine reports a
+  missing index only by raising (`index not found`), and `CALL db.labels()` is
+  `ProcedureNotFound`, so there is no catalogue to ask — and
+- keep the current `CONTAINS` scan as the fallback for every label/field whose
+  index is absent, since the two paths must return the same shape.
+
+Note what removing the flag also removed: it was the only `begin_write()` in
+the tool, so the codebase now has **no** write path at all.
 
 ### `GET /api/node/{id}`
 

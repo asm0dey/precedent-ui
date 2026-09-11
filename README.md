@@ -4,8 +4,7 @@ A read-only browser for the `precedent` decision graph (the local, journaled
 graph a `precedent.py record`/`rebuild` CLI maintains): a themed canvas of
 decisions, projects, and tags, with search, a detail panel, capped/paged
 expansion, structural collapse, and a Cypher console for ad-hoc queries. It
-never writes to your decision graph — see **Read-only, with one exception**
-below.
+never writes to your decision graph — see **Read-only** below.
 
 ## Requirements
 
@@ -52,15 +51,14 @@ uv run python -m server.precedent_ui --home /path/to/precedent --port 8899
 A relocation pointer file (`location`) inside `--home` is followed once, the
 same way `precedent.py` itself resolves a moved store.
 
-## Read-only, with one exception
+## Read-only
 
-`precedent-ui` never calls `Database.begin_write()`. The Cypher console can
-run arbitrary read queries against the graph, but the engine itself refuses
-writes outside an explicit write transaction — `CREATE`, `DETACH DELETE`, and
-friends fail with a 400, not a mutation. The **one** write this tool can ever
-perform is the opt-in `--index` flag (fulltext index creation, off by
-default, touches no decision data) — nothing else in this codebase, present
-or future, should gain a second one.
+`precedent-ui` never calls `Database.begin_write()`, and has no code path that
+could. The Cypher console can run arbitrary read queries against the graph, but
+the engine itself refuses writes outside an explicit write transaction —
+`CREATE`, `DETACH DELETE`, and friends fail with a 400, not a mutation. There
+is no write path at all in this codebase, and nothing here, present or future,
+should gain one.
 
 ## Live updates
 
