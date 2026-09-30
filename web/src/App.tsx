@@ -85,6 +85,10 @@ export default function App() {
     window.setTimeout(() => setToastMsg((cur) => (cur === msg ? null : cur)), 5000);
   }
 
+  /** A request fired from a click has no caller to await it; say so when it fails. */
+  const report = (what: string) => (e: unknown) =>
+    toast(`${what} failed: ${e instanceof Error ? e.message : String(e)}`);
+
   async function completeEdges() {
     const ids = graph.nodes().map(Number);
     const { edges } = await edgesBetween(ids);
@@ -231,10 +235,10 @@ export default function App() {
     const id = menu.nodeId;
     switch (action.kind) {
       case "expand":
-        expandOne(id, action.degree.type, action.degree.dir);
+        expandOne(id, action.degree.type, action.degree.dir).catch(report("expand"));
         break;
       case "expand-all":
-        expandAll(id);
+        expandAll(id).catch(report("expand all"));
         break;
       case "collapse":
         collapseTo(id, action.depth);
@@ -246,7 +250,7 @@ export default function App() {
         hide(id);
         break;
       case "copy-key":
-        if (menu.key) navigator.clipboard.writeText(menu.key.value);
+        if (menu.key) navigator.clipboard.writeText(menu.key.value).catch(report("copy"));
         break;
     }
     setMenu(null);
@@ -285,7 +289,7 @@ export default function App() {
         .filter((n) => n.labels[0] === "Project")
         .forEach((n) => roots.add(String(n.id)));
       setVersion((v) => v + 1);
-    });
+    }, report("loading the projects map"));
     // Load once on mount. Theme changes re-tint via the Canvas reducers, not a re-fetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -363,10 +367,10 @@ export default function App() {
           refreshedAt={refreshedAt}
           more={more}
           onExpand={(type, dir, offset) => {
-            if (selected !== null) expandOne(selected, type, dir, offset);
+            if (selected !== null) expandOne(selected, type, dir, offset).catch(report("expand"));
           }}
           onOpenMenu={(x, y) => {
-            if (selected !== null) onContextMenu(selected, x, y);
+            if (selected !== null) onContextMenu(selected, x, y).catch(report("opening the menu"));
           }}
           menuOpen={menu !== null && menu.nodeId === selected}
         />

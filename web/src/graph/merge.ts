@@ -25,7 +25,8 @@ export function mergeInto(graph: Graph, nodes: GNode[], edges: GEdge[], mode: Mo
     // pinned node whenever an expansion returns it as a neighbour again.
     graph.mergeNode(
       key,
-      graph.hasNode(key) ? attrs : { ...attrs, x: Math.random(), y: Math.random() },
+      // Layout jitter, not a secret: FA2 only needs nodes not to start coincident.
+      graph.hasNode(key) ? attrs : { ...attrs, x: Math.random(), y: Math.random() }, // NOSONAR
     );
   }
   for (const e of edges) {

@@ -55,7 +55,14 @@ export const getMeta = () =>
 export const search = (q: string, limit = 50) =>
   get<Hit[]>(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`);
 
-export const getNode = (id: number) => get<NodeDetail>(`/api/node/${id}`);
+/** Node ids arrive in server responses, so they are data, not trusted path
+ * segments: anything but a safe integer is refused before it reaches a URL. */
+function idSegment(id: number): string {
+  if (!Number.isSafeInteger(id)) throw new TypeError(`not a node id: ${String(id)}`);
+  return encodeURIComponent(String(id));
+}
+
+export const getNode = (id: number) => get<NodeDetail>(`/api/node/${idSegment(id)}`);
 
 export const expand = (
   id: number,
@@ -64,7 +71,7 @@ export const expand = (
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(opts)) if (v !== undefined) p.set(k, String(v));
   return get<{ nodes: GNode[]; edges: GEdge[]; total: number; offset: number; limit: number }>(
-    `/api/expand/${id}?${p}`,
+    `/api/expand/${idSegment(id)}?${p}`,
   );
 };
 

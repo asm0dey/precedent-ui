@@ -12,10 +12,12 @@ type Result = { columns: string[]; rows: Cell[][]; truncated: boolean };
  * engine's own message (parser text, read-transaction refusal, …) reaches the
  * user verbatim instead of being swallowed. */
 function parseEngineError(e: unknown): EngineError {
-  const m = String(e).match(/\{.*\}/);
-  if (m) {
+  const s = String(e);
+  const start = s.indexOf("{");
+  const end = s.lastIndexOf("}");
+  if (start !== -1 && end > start) {
     try {
-      const body = JSON.parse(m[0]);
+      const body = JSON.parse(s.slice(start, end + 1));
       if (body?.detail?.error) return body.detail as EngineError;
     } catch {
       // fall through to the generic message below

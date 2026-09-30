@@ -148,7 +148,9 @@ export function ContextMenu({
         // reachable, so a keyboard user can read why it is unavailable instead
         // of it silently vanishing from the menu.
         return (
-          <li
+          // NOSONAR below: Enter and Space are handled once, by the <ul>, for the
+          // focused item (roving focus) — a listener per item would duplicate it.
+          <li // NOSONAR
             key={`i-${i}`}
             ref={(el) => {
               itemRefs.current[idx] = el;
