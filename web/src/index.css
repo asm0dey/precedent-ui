@@ -1,0 +1,72 @@
+:root {
+  --bg: #ffffff;
+  --panel-bg: #f4f4f6;
+  --border: #d8dadf;
+  --text: #14161a;
+  --text-dim: #6b7280;
+  --accent: #2f6fd0;
+  --warn: #c2410c;
+  /* mirrors skin.ts's warn.regret — see the canvas reducers */
+  --warn-regret: #b91c1c;
+  --superseded-alpha: 0.35;
+
+  color-scheme: light;
+  font: 15px/1.4 system-ui, "Segoe UI", Roboto, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14161a;
+  --panel-bg: #1b1e24;
+  --border: #2e323b;
+  --text: #e8eaed;
+  --text-dim: #a1a8b3;
+  --accent: #7aa9f0;
+  --warn: #f08a4b;
+  --warn-regret: #f06a6a;
+  /* superseded needs a *higher* alpha on a dark ground to still read as faded
+     rather than as invisible — mirrors skin.ts's statusAlpha. */
+  --superseded-alpha: 0.5;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* @react-sigma/core's own stylesheet hardcodes --sigma-controls-background-color:#fff
+   and --sigma-controls-color:#000 on a plain `:root` rule, independent of our theme —
+   so its zoom/fit/fullscreen/layout control icons stay light-mode-only otherwise,
+   invisible (white-on-white) once color-scheme:dark makes their `buttontext`/inherited
+   color resolve white too. `:root[data-theme]` (0,2,0) outranks their plain `:root`
+   (0,1,0) regardless of stylesheet load order, so this remaps their control colors to
+   our own theme tokens without needing to touch @react-sigma/core's CSS. */
+:root[data-theme] {
+  --sigma-controls-background-color: var(--panel-bg);
+  --sigma-controls-background-color-hover: var(--border);
+  --sigma-controls-border-color: var(--border);
+  --sigma-controls-color: var(--text);
+
+  /* Same story for the canvas background. The main canvas hides this because
+     SigmaContainer sets its own background via the `style` prop, but the minimap
+     mounts a second `div.react-sigma` that only ever reads this variable — so in
+     dark theme it rendered as a white slab in the corner. */
+  --sigma-background-color: var(--bg);
+}

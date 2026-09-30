@@ -4,3 +4,8 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+.playwright-mcp/
+coverage/
+.coverage
+coverage.xml
+.scannerwork/

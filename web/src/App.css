@@ -1,0 +1,642 @@
+.app {
+  display: grid;
+  grid-template-columns: 260px 1fr 300px;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "header header header"
+    "search canvas detail"
+    "cypher cypher cypher";
+  height: 100vh;
+  width: 100%;
+}
+
+.app-header {
+  grid-area: header;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.panel {
+  overflow: auto;
+  padding: 12px;
+  color: var(--text-dim);
+  font-size: 13px;
+  background: var(--panel-bg);
+}
+
+.panel-search {
+  grid-area: search;
+  border-right: 1px solid var(--border);
+  /* A column so the results scroll and the legend stays put: a long hit list
+     otherwise pushes the legend past the bottom of the rail, where it may as
+     well not exist. */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-search > .search-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.panel-search > .legend {
+  flex: none;
+}
+
+.search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+}
+
+.search-hit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.search-hit:hover,
+.search-hit:focus-visible {
+  background: var(--bg);
+}
+
+.search-results strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.search-results small {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.chip {
+  align-self: flex-start;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  background: var(--border);
+  color: var(--text-dim);
+}
+
+.error {
+  color: #e5484d;
+  font-size: 12px;
+}
+
+.panel-canvas {
+  grid-area: canvas;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.panel-detail {
+  grid-area: detail;
+  border-left: 1px solid var(--border);
+}
+
+.detail-empty {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail.superseded {
+  opacity: var(--superseded-alpha);
+}
+
+.detail h2 {
+  margin: 8px 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.detail .statement {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+/* The rationale is the reason the tool exists: dominant, not a property row. */
+.detail .rationale {
+  margin: 4px 0 14px;
+  padding: 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.detail .rationale h3 {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.detail .rationale p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.detail .despite {
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--warn);
+  background: var(--bg);
+}
+
+.detail .despite h3 {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.detail .despite p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.detail dl.meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 8px;
+  margin: 0 0 14px;
+  font-size: 12px;
+}
+
+.detail dl.meta dt {
+  color: var(--text-dim);
+}
+
+.detail dl.meta dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.detail dd.status-superseded {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* Status is visual here too, not only on the canvas. */
+.detail dd.status-regretted {
+  color: var(--warn-regret);
+  font-weight: 600;
+}
+
+.detail .expand {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.detail .expand h3 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.expand-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.expand-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip-expand {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chip-expand:hover,
+.chip-expand:focus-visible {
+  border-color: var(--accent);
+}
+
+.more-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.panel-cypher {
+  grid-area: cypher;
+  border-top: 1px solid var(--border);
+  min-height: 44px;
+  max-height: 40vh;
+  overflow: auto;
+  padding: 8px 16px;
+  color: var(--text-dim);
+  font-size: 13px;
+  background: var(--panel-bg);
+}
+
+.cypher {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cypher-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.cypher-controls label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.cypher-controls select {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.cypher-input {
+  flex: 1 1 100%;
+  min-width: 240px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+}
+
+.cypher-controls button {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cypher-controls button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.cypher-error {
+  margin: 0;
+  padding: 6px 8px;
+  border-left: 3px solid #e5484d;
+  background: var(--bg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.warn {
+  color: var(--warn);
+  font-size: 12px;
+}
+
+.cypher-add {
+  align-self: flex-start;
+  padding: 5px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cypher-table-wrap {
+  overflow: auto;
+  max-height: 220px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.cypher-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+
+.cypher-table th,
+.cypher-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cypher-table th {
+  position: sticky;
+  top: 0;
+  background: var(--panel-bg);
+  color: var(--text-dim);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stream-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  font-size: 12px;
+  color: var(--warn);
+}
+
+.stream-badge button {
+  padding: 4px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--warn);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.stream-badge button:hover,
+.stream-badge button:focus-visible {
+  background: var(--warn);
+  color: #fff;
+}
+
+.theme-toggle {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px;
+  margin: 0;
+  min-width: 0;
+}
+
+.theme-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.theme-toggle button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  min-width: 160px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  color: var(--text);
+  font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.context-menu li {
+  position: relative;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.context-menu li:hover {
+  background: var(--bg);
+}
+
+.context-menu li.sep {
+  margin: 4px 2px;
+  padding: 0;
+  height: 1px;
+  background: var(--border);
+  cursor: default;
+}
+
+.context-menu li.sep:hover {
+  background: var(--border);
+}
+
+.context-menu li[role="menuitem"]:focus {
+  background: var(--accent);
+  color: #fff;
+  outline: none;
+}
+
+.context-menu li.menu-heading {
+  padding: 4px 10px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.context-menu li.menu-heading:hover {
+  background: none;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.detail-actions-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.detail-actions-btn:hover,
+.detail-actions-btn:focus-visible {
+  border-color: var(--accent);
+}
+
+.canvas-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 30;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Offered but not applicable: kept visible and focusable, with the reason in
+   its title, rather than vanishing from the menu. */
+.context-menu li[aria-disabled="true"] {
+  color: var(--text-dim);
+  cursor: default;
+}
+
+
+/* The legend sits under search in the left rail: colour, name, and how many of
+   that kind the store holds. Counts come from /api/meta. */
+.legend {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 10px;
+  font-size: 12px;
+}
+
+.legend h3 {
+  margin: 8px 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.legend ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.legend .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.legend .swatch.line {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.legend-name {
+  flex: 1;
+  color: var(--text);
+}
+
+.legend-count {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}

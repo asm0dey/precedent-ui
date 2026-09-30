@@ -22,6 +22,39 @@
 - **Every query that asks what is true now filters `status = 'active'`.** Superseded decisions are retained deliberately and otherwise pollute results.
 - **Store location** resolves like `precedent.py` does: default `~/.local/share/precedent`, and a `location` file inside it holding one absolute path relocates it — followed exactly **one** hop.
 
+## Security boundary
+
+`/api/cypher` executes arbitrary user-supplied Cypher on purpose, so the trust
+boundary is the loopback socket, not any individual endpoint. That is only
+acceptable because of what the engine cannot do, which was measured rather than
+assumed:
+
+| Probe | Result |
+|---|---|
+| `LOAD CSV FROM 'file:///etc/passwd'` | `SyntaxError` — not parsed |
+| `apoc.load.json('file://…')` | `SyntaxError` |
+| `CALL dbms.procedures()`, `CALL db.labels()` | `ProcedureNotFound` — no procedure support |
+| `CREATE`, `DETACH DELETE` | refused: writes need an explicit write transaction |
+
+Arbitrary Cypher therefore reads the decision graph and nothing else — the same
+data the UI renders. Three rules follow, and they are requirements, not advice:
+
+- **Bind loopback only.** `host="127.0.0.1"`. Never `0.0.0.0`.
+- **Never add permissive CORS.** No `CORSMiddleware` with `allow_origins=["*"]`.
+  Today a cross-origin page cannot reach `/api/cypher`, because a JSON POST
+  forces a preflight that goes unanswered. Opening CORS would hand a visited
+  web page read access to the user's whole decision graph.
+- **Validate interpolated Cypher fragments anyway.** `expand`'s `type` is the
+  only user value ever interpolated rather than parameterised; it is validated
+  against `^[A-Za-z_][A-Za-z0-9_]*$`. This buys clear 400s instead of opaque
+  500s rather than privilege containment — `/api/cypher` already grants more —
+  but an endpoint that builds Cypher from a request value should never be the
+  loose one.
+
+Known and accepted: a pathological query (a large cartesian product) can pin CPU
+before the 1000-row cap applies, and the engine exposes no statement timeout.
+For a single-user local tool the mitigation is Ctrl-C.
+
 ### Dependency declaration — amendment to the spec
 
 The spec says the server is a `uv run` script with inline deps. This plan uses a
@@ -1123,11 +1156,11 @@ git commit -m "feat: cypher console endpoint and SSE change stream"
 - [ ] **Step 1: Scaffold and install**
 
 ```bash
-npm create vite@latest web -- --template react-ts
+bun create vite web --template react-ts
 cd web
-npm install
-npm install sigma graphology @react-sigma/core @react-sigma/minimap @react-sigma/layout-forceatlas2
-npm install -D vitest
+bun install
+bun add sigma graphology @react-sigma/core @react-sigma/minimap @react-sigma/layout-forceatlas2
+bun add -d vitest
 ```
 
 Add to `web/package.json` scripts: `"test": "vitest run"`.
@@ -1269,7 +1302,7 @@ describe("cellsToGraph", () => {
 
 - [ ] **Step 4: Run the tests to verify they fail**
 
-Run: `cd web && npm test`
+Run: `cd web && bun run test`
 Expected: FAIL — cannot resolve `./budget`, `./collapse`, `./classify`
 
 - [ ] **Step 5: Implement the pure modules**
@@ -1417,7 +1450,7 @@ export const runCypher = (query: string, params: Record<string, unknown> = {}) =
 
 - [ ] **Step 6: Run the tests to verify they pass**
 
-Run: `cd web && npm test`
+Run: `cd web && bun run test`
 Expected: 12 passed
 
 - [ ] **Step 7: Commit**
@@ -1659,7 +1692,7 @@ are the map you navigate from.
 
 ```bash
 uv run python -m server.precedent_ui --port 8899 &
-cd web && npm run dev
+cd web && bun run dev
 ```
 Open the printed URL. Expected: 6 Projects joined to their Tags, arrows drawn,
 hovering a node dims the rest, the theme toggle flips both panels and canvas,
@@ -2164,14 +2197,14 @@ Mount last, after every `/api` route, so the catch-all cannot shadow them.
 - [ ] **Step 3: Write `README.md`**
 
 Cover: what it is, that it is read-only, `uv run python -m server.precedent_ui`,
-the dev loop (`npm run dev` + the proxy), `npm run build` for the single-process
-mode, `--home` for a relocated store, and the note that `--index` (Task 15) is
-the one write it can ever perform.
+the dev loop (`bun run dev` + the proxy), `bun run build` for the single-process
+mode, `--home` for a relocated store, and the note that the tool has no write
+path at all (see Task 15, which was implemented and then removed).
 
 - [ ] **Step 4: Verify the full loop by hand**
 
 ```bash
-cd web && npm run build && cd ..
+cd web && bun run build && cd ..
 uv run python -m server.precedent_ui --port 8899
 ```
 Open `http://127.0.0.1:8899`. In another terminal record a decision with
@@ -2187,60 +2220,27 @@ git commit -m "feat: live change badge, static serving, README"
 
 ---
 
-### Task 15: Optional fulltext indexes
+### Task 15: Optional fulltext indexes — IMPLEMENTED, THEN REMOVED
 
 **Files:**
 - Modify: `server/precedent_ui.py`, `server/store.py`, `tests/test_store.py`
 
-**Interfaces:**
-- Produces: `Store.create_indexes()` and a `--index` CLI flag; `Store.has_fulltext` used by search to pick its path.
+This task was built (`Store.create_indexes()`, a `--index` CLI flag, and a test)
+and then removed in the final review pass, because it was a pure no-op:
+graphdblite's fulltext indexes are reachable only through
+`CALL fts.search(label, property, query)`, and `server/queries.py`'s
+`search_cypher` unconditionally emits `toLower(toString(n.<field>)) CONTAINS $q`
+with no branch on index presence. The index was created and then never read.
+`Store.has_fulltext` — named in the original interface list — was never built.
 
-This is the **one** write this tool can ever perform. It creates fulltext
-indexes and touches no decision data. It is never implicit and is off by
-default.
+Removing it also removed the only `begin_write()` in the codebase, so the tool
+now has no write path at all.
 
-- [ ] **Step 1: Write the failing test**
-
-```python
-def test_create_indexes_is_opt_in_and_leaves_decisions_untouched(store):
-    before = store.query("MATCH (n) RETURN count(n) AS n")[0]["n"]
-    store.create_indexes()
-    after = store.query("MATCH (n) RETURN count(n) AS n")[0]["n"]
-    assert after == before
-```
-
-- [ ] **Step 2: Run it to verify it fails**
-
-Run: `uv run pytest tests/test_store.py -v`
-Expected: FAIL — `Store` has no attribute `create_indexes`
-
-- [ ] **Step 3: Implement**
-
-```python
-    def create_indexes(self) -> None:
-        """The one write this tool performs. Never called implicitly."""
-        from server.queries import SEARCH_FIELDS
-
-        with self._handle().begin_write() as tx:
-            for label, fields in SEARCH_FIELDS.items():
-                tx.create_fulltext_index_word_multi(label, fields)
-            tx.commit()
-```
-
-Add `--index` to `main()`: when passed, build the indexes, print what was
-created, and exit without starting the server.
-
-- [ ] **Step 4: Run the tests to verify they pass**
-
-Run: `uv run pytest -v`
-Expected: all pass
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add server/ tests/
-git commit -m "feat: opt-in fulltext indexes for large stores"
-```
+What it would take to build it for real, if a store ever outgrows the scan, is
+recorded in the spec's *search* section: per-label/field index-presence probing
+(the engine reports a missing index only by raising, and `CALL db.labels()` is
+`ProcedureNotFound`, so there is no catalogue to ask) plus a fallback to the
+current scan.
 
 ---
 
@@ -2250,7 +2250,7 @@ Run the whole suite and both hand-checks before calling this done:
 
 ```bash
 uv run pytest -v
-cd web && npm test && npm run build
+cd web && bun run test && bun run build
 ```
 
 Then, against the real store: search finds a Decision; double-click expands its
