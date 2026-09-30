@@ -41,7 +41,7 @@ depends = ["test:py", "test:web"]
 
 [tasks."test:py"]
 description = "Run the Python test suite"
-run = "uv run pytest -q"
+run = "uv run pytest -q --cov=server --cov-report=term --cov-report=xml"
 
 [tasks."test:web"]
 description = "Run the frontend unit tests"

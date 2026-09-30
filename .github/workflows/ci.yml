@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Build, test & Sonar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # full history so SonarQube can attribute new-code lines via git blame
+
+      # The API tests replay a fixture journal through the real precedent CLI;
+      # without it 34 of them skip. Pinned to a release so a precedent change
+      # cannot turn this build red on its own.
+      - name: Check out the precedent CLI
+        uses: actions/checkout@v7
+        with:
+          repository: asm0dey/precedent
+          ref: v0.5.1
+          path: .precedent
+
+      - name: Set up tools from mise.toml
+        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+
+      - name: Install dependencies
+        run: mise run install
+
+      # The same entry point as locally: both suites (with coverage) plus the build.
+      - name: Build and test
+        env:
+          PRECEDENT_CLI: ${{ github.workspace }}/.precedent/adapters/claude/skills/precedent/scripts/precedent.py
+        run: mise run check
+
+      - name: Make frontend coverage paths repo-relative
+        run: sed -i 's|^SF:|SF:web/|' web/coverage/lcov.info
+
+      # GitHub withholds secrets from fork PRs, so they build and test but skip analysis.
+      - name: SonarQube Cloud analysis
+        if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork }}
+        uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4 # v8.2.2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
