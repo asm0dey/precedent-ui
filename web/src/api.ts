@@ -53,7 +53,7 @@ export const getMeta = () =>
   );
 
 export const search = (q: string, limit = 50) =>
-  get<Hit[]>(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`);
+  get<Hit[]>(`/api/search?${new URLSearchParams({ q, limit: String(limit) })}`);
 
 /** Node ids arrive in server responses, so they are data, not trusted path
  * segments: anything but a safe integer is refused before it reaches a URL. */

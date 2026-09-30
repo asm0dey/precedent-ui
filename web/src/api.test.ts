@@ -71,7 +71,13 @@ describe("search", () => {
   it("encodes the query and defaults the limit to 50", async () => {
     fetchMock.mockResolvedValue(ok([]));
     await search("a&b c/?");
-    expect(fetchMock).toHaveBeenCalledWith("/api/search?q=a%26b%20c%2F%3F&limit=50");
+    const url = new URL(fetchMock.mock.calls[0][0] as string, "http://x");
+    expect(url.pathname).toBe("/api/search");
+    // The query arrives whole: its & and ? cannot split off into parameters of their own.
+    expect([...url.searchParams]).toEqual([
+      ["q", "a&b c/?"],
+      ["limit", "50"],
+    ]);
   });
 
   it("passes an explicit limit", async () => {
