@@ -121,3 +121,10 @@ export const captionOf = (n: { labels: string[]; props: Record<string, unknown> 
   const v = field ? n.props[field] : undefined;
   return v === undefined ? n.labels[0] : String(v);
 };
+
+/** Canvas labels are clipped: a full decision title runs several label-grid
+ * cells wide and paints over its neighbours. The hovered node and the detail
+ * panel still show it whole. */
+export const CANVAS_LABEL_MAX = 28;
+export const clip = (s: string) =>
+  s.length > CANVAS_LABEL_MAX ? `${s.slice(0, CANVAS_LABEL_MAX - 1).trimEnd()}…` : s;

@@ -14,9 +14,13 @@ import {
 } from "@react-sigma/layout-forceatlas2";
 import { MiniMap } from "@react-sigma/minimap";
 import Graph from "graphology";
+import noverlap from "graphology-layout-noverlap";
+import type Sigma from "sigma";
+import type { Coordinates } from "sigma/types";
 import { useEffect, useRef } from "react";
 import { drawDiscNodeHover } from "sigma/rendering";
-import { HOVER_LABEL_INK, edgePaint, nodePaint, tokens, type Mode } from "../skin";
+import { positions, settled } from "./settle";
+import { HOVER_LABEL_INK, clip, edgePaint, nodePaint, tokens, type Mode } from "../skin";
 
 /** Theme, status and hover all live in the reducers, so neither a theme flip nor
  * the precedent skin ever rewrites graph attributes — they only read them. */
@@ -40,6 +44,7 @@ function Reducers({ mode, hovered }: { mode: Mode; hovered: string | null }) {
     sigma.setSetting("nodeReducer", (node, data) => {
       const base = {
         ...data,
+        label: node === hovered ? data.label : data.label && clip(data.label),
         // Status is visual: `superseded` fades, `regretted` turns the regret
         // warning colour. Both come from the node's own `status` attribute.
         color: nodePaint(t, data.nodeLabel as string, data.status as string),
@@ -75,11 +80,52 @@ function Reducers({ mode, hovered }: { mode: Mode; hovered: string | null }) {
  * play button in the corner and pressed it yourself. Merging is the whole
  * interaction here, so settling after a merge is the tool's job, not yours.
  *
+ * It runs until the layout converges rather than for a fixed time: a fixed
+ * budget stopped big working sets half-way, leaving the shape the next press
+ * of play would still change. Once settled, noverlap pushes apart discs that FA2
+ * left stacked — FA2 itself is size-blind here (see the settings below), so
+ * noverlap must come after it, or FA2 would pull the leaves back onto their hub.
+ *
  * Pinned nodes carry `fixed: true` and are left where you put them.
  */
-const SETTLE_MS = 1500;
+/** How often to sample positions while waiting for the layout to settle. */
+const SAMPLE_MS = 250;
+/** Give up waiting after this long; a huge working set may never quite settle. */
+const MAX_SETTLE_MS = 15000;
+/** How hard each relationship pulls its ends together in the layout. */
+const EDGE_WEIGHT: Record<string, number> = {
+  IN_PROJECT: 5,
+  TAGGED: 3,
+  CHOSE: 1,
+  REJECTED: 1,
+  ABOUT: 0.5,
+};
+/** Screen pixels noverlap keeps between discs. */
+const NODE_GAP_PX = 4;
 /** How far in to zoom when centring on a node. Lower is closer. */
 const FOCUS_RATIO = 0.25;
+
+/**
+ * Pushes apart discs that overlap on screen. Runs in viewport space because
+ * node sizes are screen pixels while positions are graph units; working in the
+ * graph's own space would compare the two and mean nothing.
+ */
+function separate(sigma: Sigma) {
+  const graph = sigma.getGraph();
+  noverlap.assign(graph, {
+    maxIterations: 200,
+    settings: { margin: NODE_GAP_PX },
+    inputReducer: (key, attrs) => {
+      const d = sigma.getNodeDisplayData(key);
+      return { ...sigma.graphToViewport(attrs as Coordinates), size: d?.size ?? attrs.size };
+    },
+    // A pinned node stays exactly where it was put.
+    outputReducer: (key, pos) =>
+      graph.getNodeAttribute(key, "fixed")
+        ? { x: graph.getNodeAttribute(key, "x"), y: graph.getNodeAttribute(key, "y") }
+        : sigma.viewportToGraph(pos),
+  });
+}
 
 function AutoLayout({
   version,
@@ -90,7 +136,16 @@ function AutoLayout({
   focus: Focus | null;
   fit: number;
 }) {
-  const { start, stop } = useWorkerLayoutForceAtlas2({ settings: { slowDown: 10 } });
+  // The default scalingRatio of 1 packs a project's decisions and tags into one
+  // clump. Not adjustSizes: nodes are seeded in [0,1] but drawn at size 8, so the
+  // overlap force swamps every edge and the graph settles into a featureless disc.
+  // linLog and the edge weights are what make clusters: a decision sits on its
+  // project, a project near its tags, and the options shared across projects
+  // (bun, go-task) are a weak pull rather than glue fusing every project together.
+  const { start, stop } = useWorkerLayoutForceAtlas2({
+    settings: { slowDown: 10, scalingRatio: 5, linLogMode: true, barnesHutOptimize: true },
+    getEdgeWeight: (_, attrs) => EDGE_WEIGHT[attrs.edgeType as string] ?? 1,
+  });
   const { goto, reset } = useCamera();
   const sigma = useSigma();
   // Read inside the settle callback rather than as an effect dependency: a new
@@ -109,8 +164,21 @@ function AutoLayout({
 
   useEffect(() => {
     start();
-    const timer = setTimeout(() => {
+    const graph = sigma.getGraph();
+    const began = Date.now();
+    let last = positions(graph);
+    // Two calm samples in a row, not one: the worker may not have written its
+    // first iteration yet when the first sample is taken, and an untouched
+    // layout reads as a settled one.
+    let calm = 0;
+    const timer = setInterval(() => {
+      const now = positions(graph);
+      calm = settled(last, now) ? calm + 1 : 0;
+      last = now;
+      if (calm < 2 && Date.now() - began < MAX_SETTLE_MS) return;
+      clearInterval(timer);
       stop();
+      separate(sigma);
       // Centre only once the layout has finished moving things. Doing it at
       // merge time would aim the camera at the random position a new node is
       // seeded with, and land on empty space a second later.
@@ -124,9 +192,9 @@ function AutoLayout({
       lastFocus.current = want.nonce;
       const d = sigma.getNodeDisplayData(String(want.id));
       if (d) goto({ x: d.x, y: d.y, ratio: FOCUS_RATIO }, { duration: 600 });
-    }, SETTLE_MS);
+    }, SAMPLE_MS);
     return () => {
-      clearTimeout(timer);
+      clearInterval(timer);
       stop();
     };
   }, [version, start, stop, goto, reset, sigma, fit]);
@@ -244,7 +312,7 @@ export function Canvas({
     <SigmaContainer
       graph={graph}
       style={{ height: "100%", width: "100%", background: t.bg }}
-      settings={{ allowInvalidContainer: true, defaultEdgeType: "arrow", labelDensity: 0.2 }}
+      settings={{ allowInvalidContainer: true, defaultEdgeType: "arrow", labelDensity: 0.2, labelGridCellSize: 200 }}
     >
       <Reducers mode={mode} hovered={hovered} />
       <AutoLayout version={version} focus={focus} fit={fit} />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { edgePaint, nodePaint, tokens, withAlpha } from "./skin";
+import { CANVAS_LABEL_MAX, clip, edgePaint, nodePaint, tokens, withAlpha } from "./skin";
 
 const light = tokens("light");
 const dark = tokens("dark");
@@ -70,5 +70,14 @@ describe("edgePaint", () => {
       expect(t.verdict.CHOSE).not.toBe(t.edge);
       expect(t.verdict.REJECTED).not.toBe(t.edge);
     }
+  });
+});
+
+describe("clip", () => {
+  it("leaves a short label alone and caps a long one at CANVAS_LABEL_MAX", () => {
+    expect(clip("bun")).toBe("bun");
+    const long = clip("Ship as a GraalVM native musl binary on Alpaquita, non-root");
+    expect(long.length).toBe(CANVAS_LABEL_MAX);
+    expect(long.endsWith("…")).toBe(true);
   });
 });
