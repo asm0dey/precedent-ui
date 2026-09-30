@@ -1,0 +1,55 @@
+[tools]
+uv = "0.12"
+bun = "1.3"
+
+[tasks.install]
+description = "Install both toolchains' dependencies"
+run = ["uv sync", "cd web && bun install"]
+
+[tasks.build]
+description = "Build the frontend into web/dist"
+dir = "web"
+sources = ["src/**/*", "index.html", "package.json", "vite.config.ts", "tsconfig*.json"]
+outputs = ["dist/**/*"]
+run = "bun run build"
+
+[tasks.run]
+description = "Build, then serve the app and API from one process on $PORT"
+depends = ["build"]
+run = "uv run python -m server.precedent_ui --port ${PORT:-8899}"
+
+[tasks.serve]
+description = "Serve whatever is already in web/dist, without rebuilding"
+run = "uv run python -m server.precedent_ui --port ${PORT:-8899}"
+
+[tasks.dev]
+description = "Run the API and the Vite dev server together (Vite proxies /api to 8899)"
+depends = ["dev:api", "dev:web"]
+
+[tasks."dev:api"]
+hide = true
+run = "uv run python -m server.precedent_ui --port 8899"
+
+[tasks."dev:web"]
+hide = true
+dir = "web"
+run = "bun run dev"
+
+[tasks.test]
+description = "Run both test suites"
+depends = ["test:py", "test:web"]
+
+[tasks."test:py"]
+description = "Run the Python test suite"
+run = "uv run pytest -q"
+
+[tasks."test:web"]
+description = "Run the frontend unit tests"
+dir = "web"
+run = "bun run test"
+
+# `bun run build` is the only real type check here: the solution-style tsconfig
+# means `tsc --noEmit` checks zero files, and vitest transpiles without checking.
+[tasks.check]
+description = "Everything CI would run — both suites plus the build"
+depends = ["test:py", "test:web", "build"]

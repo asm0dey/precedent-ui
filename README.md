@@ -24,14 +24,15 @@ cd web && bun install && bun run build && cd ..
 uv run python -m server.precedent_ui
 ```
 
-With [go-task](https://taskfile.dev) installed, that is one command:
+With [mise](https://mise.jdx.dev) installed, `mise install` fetches the pinned
+uv and bun, and the rest is one command:
 
 ```bash
-go-task run          # build the frontend, then serve app + API on :8899
-go-task run PORT=9000
-go-task dev          # API and the Vite dev server together
-go-task check        # both test suites plus the build
-go-task --list       # everything else
+mise run run         # build the frontend, then serve app + API on :8899
+PORT=9000 mise run run
+mise run dev         # API and the Vite dev server together
+mise run check       # both test suites plus the build
+mise tasks           # everything else
 ```
 
 Open `http://127.0.0.1:8899`. Rebuild (`bun run build`) after any frontend
