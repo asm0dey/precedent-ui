@@ -250,7 +250,11 @@ export default function App() {
         hide(id);
         break;
       case "copy-key":
-        if (menu.key) navigator.clipboard.writeText(menu.key.value).catch(report("copy"));
+        // navigator.clipboard is absent outside a secure context (plain HTTP
+        // anywhere but localhost), and touching it there throws synchronously.
+        if (!menu.key) break;
+        if (navigator.clipboard) navigator.clipboard.writeText(menu.key.value).catch(report("copy"));
+        else toast("copy needs HTTPS or localhost — the browser offers no clipboard here");
         break;
     }
     setMenu(null);
@@ -342,7 +346,7 @@ export default function App() {
         </div>
       </header>
       <aside className="panel panel-search">
-        <Search onPick={onPick} />
+        <Search onPick={(hit) => onPick(hit).catch(report("adding the search hit"))} />
         <Legend mode={mode} />
       </aside>
       <main className="panel-canvas">
@@ -354,8 +358,8 @@ export default function App() {
           focus={cameraFocus}
           fit={fitNonce}
           onSelect={setSelected}
-          onDoubleClick={onDoubleClick}
-          onContextMenu={onContextMenu}
+          onDoubleClick={(id) => onDoubleClick(id).catch(report("expand all"))}
+          onContextMenu={(id, x, y) => onContextMenu(id, x, y).catch(report("opening the menu"))}
           onHover={setHovered}
           onPin={(id) => pinned.add(id)}
         />
@@ -376,7 +380,7 @@ export default function App() {
         />
       </aside>
       <footer className="panel-cypher">
-        <Cypher onAdd={onCypherAdd} />
+        <Cypher onAdd={(nodes, edges) => onCypherAdd(nodes, edges).catch(report("adding the query result"))} />
       </footer>
       {/* position: fixed — opened from either a canvas right-click or the Detail
           panel's keyboard-reachable actions button, so it isn't scoped to one panel. */}
