@@ -9,7 +9,7 @@ import { EDGE_LEGEND, tokens, type Mode } from "../skin";
  * legend is what it was always for. They also answer a question the canvas
  * cannot: the working set shows a slice, these are the totals behind it.
  */
-export function Legend({ mode }: { mode: Mode }) {
+export function Legend({ mode }: Readonly<{ mode: Mode }>) {
   const t = tokens(mode);
   const [labels, setLabels] = useState<Record<string, number> | null>(null);
   const [edgeTypes, setEdgeTypes] = useState<Record<string, number> | null>(null);

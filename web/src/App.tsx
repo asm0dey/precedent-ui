@@ -145,16 +145,18 @@ export default function App() {
   async function expandAll(id: number) {
     const { degrees } = await getNode(id);
     const plan = allocate(degrees, EXPAND_ALL_BUDGET);
+    // The budget is already split across types, so the pages are independent.
+    const pages = await Promise.all(
+      plan
+        .filter((a) => a.take > 0)
+        .map((a) => expand(id, { type: a.type, dir: a.dir, limit: a.take })),
+    );
     let added = 0;
-    let left = 0;
-    for (const a of plan) {
-      if (a.take > 0) {
-        const r = await expand(id, { type: a.type, dir: a.dir, limit: a.take });
-        mergeInto(graph, r.nodes, r.edges, mode); // NOT roots: expansion is derived
-        added += r.nodes.length;
-      }
-      left += a.remaining;
+    for (const r of pages) {
+      mergeInto(graph, r.nodes, r.edges, mode); // NOT roots: expansion is derived
+      added += r.nodes.length;
     }
+    const left = plan.reduce((sum, a) => sum + a.remaining, 0);
     await completeEdges();
     expandedAll.add(id);
     if (left > 0) toast(`added ${added} of ${added + left} — use the type chips for the rest`);
@@ -332,7 +334,7 @@ export default function App() {
             </>
           )}
         </div>
-        <div className="theme-toggle" role="group" aria-label="Theme">
+        <fieldset className="theme-toggle" aria-label="Theme">
           {THEME_OPTIONS.map((opt) => (
             <button
               key={opt.pref}
@@ -343,7 +345,7 @@ export default function App() {
               {opt.label}
             </button>
           ))}
-        </div>
+        </fieldset>
       </header>
       <aside className="panel panel-search">
         <Search onPick={(hit) => onPick(hit).catch(report("adding the search hit"))} />

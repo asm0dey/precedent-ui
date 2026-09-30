@@ -26,7 +26,20 @@ function parseEngineError(e: unknown): EngineError {
   return { type: "Error", error: String(e) };
 }
 
-export function Cypher({ onAdd }: { onAdd: (n: GNode[], e: GEdge[]) => void }) {
+function renderCell(cell: Cell) {
+  if (cell.kind === "node") {
+    return (
+      <>
+        <span className={`chip ${cell.node.labels[0]}`}>{cell.node.labels[0]}</span>{" "}
+        {captionOf(cell.node)}
+      </>
+    );
+  }
+  if (cell.kind === "rel") return `-[${cell.rel.type}]->`;
+  return String(cell.value);
+}
+
+export function Cypher({ onAdd }: Readonly<{ onAdd: (n: GNode[], e: GEdge[]) => void }>) {
   const [query, setQuery] = useState(SAVED[0].cypher);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<EngineError | null>(null);
@@ -80,9 +93,7 @@ export function Cypher({ onAdd }: { onAdd: (n: GNode[], e: GEdge[]) => void }) {
         </pre>
       )}
       {result?.truncated && (
-        <div className="warn" role="status">
-          showing 1000 rows; more were dropped
-        </div>
+        <output className="warn">showing 1000 rows; more were dropped</output>
       )}
       {graphed.nodes.length > 0 && (
         <button
@@ -105,22 +116,11 @@ export function Cypher({ onAdd }: { onAdd: (n: GNode[], e: GEdge[]) => void }) {
             </thead>
             <tbody>
               {result.rows.map((row, i) => (
-                <tr key={i}>
+                // A result row has no identity of its own, and the whole table
+                // is replaced on every run, so its position is its key.
+                <tr key={i}> {/* NOSONAR */}
                   {row.map((cell, j) => (
-                    <td key={j}>
-                      {cell.kind === "node" ? (
-                        <>
-                          <span className={`chip ${cell.node.labels[0]}`}>
-                            {cell.node.labels[0]}
-                          </span>{" "}
-                          {captionOf(cell.node)}
-                        </>
-                      ) : cell.kind === "rel" ? (
-                        `-[${cell.rel.type}]->`
-                      ) : (
-                        String(cell.value)
-                      )}
-                    </td>
+                    <td key={result.columns[j]}>{renderCell(cell)}</td>
                   ))}
                 </tr>
               ))}

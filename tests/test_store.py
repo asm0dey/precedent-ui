@@ -75,4 +75,5 @@ def test_store_queries_from_many_threads(store):
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         counts = [f.result() for f in [pool.submit(one) for _ in range(32)]]
 
-    assert len(set(counts)) == 1 and counts[0] > 0
+    assert len(set(counts)) == 1
+    assert counts[0] > 0

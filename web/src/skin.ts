@@ -89,13 +89,13 @@ export function nodePaint(t: Tokens, nodeLabel: string | undefined, status: stri
  * down), the warning edges (a deliberate divergence, a regret), and everything
  * structural, which stays neutral.
  */
-export const edgePaint = (t: Tokens, edgeType: string | undefined) =>
-  t.verdict[edgeType ?? ""] ??
-  (edgeType === "DIVERGES_FROM"
-    ? t.warn.divergence
-    : edgeType === "REGRETS"
-      ? t.warn.regret
-      : t.edge);
+export const edgePaint = (t: Tokens, edgeType: string | undefined) => {
+  const verdict = t.verdict[edgeType ?? ""];
+  if (verdict) return verdict;
+  if (edgeType === "DIVERGES_FROM") return t.warn.divergence;
+  if (edgeType === "REGRETS") return t.warn.regret;
+  return t.edge;
+};
 
 /** Every relationship the skin gives a colour to, for the legend. */
 export const EDGE_LEGEND = (t: Tokens): { type: string; color: string; hint: string }[] => [
@@ -119,7 +119,9 @@ export const CAPTION_FIELD: Record<string, string> = {
 export const captionOf = (n: { labels: string[]; props: Record<string, unknown> }) => {
   const field = CAPTION_FIELD[n.labels[0]];
   const v = field ? n.props[field] : undefined;
-  return v === undefined ? n.labels[0] : String(v);
+  if (v === undefined) return n.labels[0];
+  // Caption fields are scalars; an object would caption as "[object Object]".
+  return typeof v === "object" && v !== null ? JSON.stringify(v) : String(v as string | number | boolean);
 };
 
 /** Canvas labels are clipped: a full decision title runs several label-grid

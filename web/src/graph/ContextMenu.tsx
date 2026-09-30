@@ -63,14 +63,14 @@ export function ContextMenu({
   caption,
   onAction,
   onClose,
-}: {
+}: Readonly<{
   at: { x: number; y: number } | null;
   nodeId: number;
   degrees: Degree[];
   caption: string;
   onAction: (action: ContextMenuAction) => void;
   onClose: () => void;
-}) {
+}>) {
   const rootRef = useRef<HTMLUListElement>(null);
   const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
   // What had focus before the menu opened, so it can be restored on close —
@@ -105,7 +105,7 @@ export function ContextMenu({
 
   function onKeyDown(e: React.KeyboardEvent<HTMLUListElement>) {
     const items = itemRefs.current.filter((el): el is HTMLLIElement => el !== null);
-    const current = items.findIndex((el) => el === document.activeElement);
+    const current = items.indexOf(document.activeElement as HTMLLIElement);
     if (e.key === "ArrowDown") {
       e.preventDefault();
       items[(current + 1) % items.length]?.focus();
@@ -132,16 +132,19 @@ export function ContextMenu({
       onKeyDown={onKeyDown}
       data-node-id={nodeId}
     >
+      {/* The rows are rebuilt from the same inputs every render and never
+          reorder, so index keys are stable. Headings and separators take the
+          ARIA menu roles because <img>/<hr> are not valid children of a <ul>. */}
       {rows.map((row, i) => {
         if (row.kind === "heading") {
           return (
-            <li key={`h-${i}`} role="presentation" className="menu-heading">
+            <li key={`h-${i}`} role="presentation" className="menu-heading"> {/* NOSONAR */}
               {row.text}
             </li>
           );
         }
         if (row.kind === "sep") {
-          return <li key={`s-${i}`} role="separator" className="sep" />;
+          return <li key={`s-${i}`} role="separator" className="sep" />; // NOSONAR
         }
         const idx = itemIndex++;
         // A disabled item keeps its place in the roving-focus order and stays
@@ -151,7 +154,7 @@ export function ContextMenu({
           // NOSONAR below: Enter and Space are handled once, by the <ul>, for the
           // focused item (roving focus) — a listener per item would duplicate it.
           <li // NOSONAR
-            key={`i-${i}`}
+            key={`i-${row.label}`}
             ref={(el) => {
               itemRefs.current[idx] = el;
             }}

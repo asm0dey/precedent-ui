@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from server import queries
 from server.store import DEFAULT_HOME, Store
 
-VALID_TYPE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+VALID_TYPE = re.compile(r"^[A-Za-z_]\w*$", re.ASCII)
 
 LABEL_COUNTS = "MATCH (n) RETURN labels(n)[0] AS label, count(*) AS n ORDER BY n DESC"
 EDGE_COUNTS = "MATCH ()-[r]->() RETURN type(r) AS type, count(*) AS n ORDER BY n DESC"
@@ -73,6 +73,122 @@ async def mtime_events(store: Store, interval: float = 1.0) -> AsyncIterator[str
         await asyncio.sleep(interval)
 
 
+def _best_matches(store: Store, needle: str, limit: int) -> dict[int, tuple[int, dict]]:
+    """Scan each label's searchable fields; a node found by several fields
+    is kept once, at its best rank."""
+    best: dict[int, tuple[int, dict]] = {}
+    for label, fields in queries.SEARCH_FIELDS.items():
+        for field in fields:
+            cypher = queries.search_cypher(label, field)
+            for row in store.query(cypher, {"q": needle, "cap": limit * 4}):
+                node = queries.node_out(row["n"])
+                r = queries.rank(node, needle) if field == queries.CAPTION_FIELD.get(label) else 3
+                prior = best.get(node["id"])
+                if prior is None or r < prior[0]:
+                    best[node["id"]] = (r, node)
+    return best
+
+
+def _search(store: Store, q: str, limit: int) -> list[dict]:
+    needle = q.strip().lower()
+    if not needle:
+        return []
+    best = _best_matches(store, needle, limit)
+
+    degrees = {
+        row["id"]: row["degree"]
+        for row in store.query(queries.DEGREE_FOR_IDS, {"ids": list(best)})
+    } if best else {}
+
+    ordered = sorted(
+        best.values(), key=lambda rn: (rn[0], -degrees.get(rn[1]["id"], 0), rn[1]["id"])
+    )
+    return [
+        {
+            "id": node["id"],
+            "labels": node["labels"],
+            "caption": queries.caption(node),
+            "sub": queries.subtitle(node),
+            "degree": degrees.get(node["id"], 0),
+        }
+        for _, node in ordered[:limit]
+    ]
+
+
+def _node(store: Store, node_id: int) -> dict:
+    rows = store.query(queries.NODE_BY_ID, {"id": node_id})
+    if not rows:
+        raise HTTPException(404, f"no node {node_id} — the graph may have been rebuilt")
+    n = queries.node_out(rows[0]["n"])
+    degrees = [
+        {"type": r["type"], "dir": "out", "count": r["n"]}
+        for r in store.query(queries.DEGREE_OUT, {"id": node_id})
+    ] + [
+        {"type": r["type"], "dir": "in", "count": r["n"]}
+        for r in store.query(queries.DEGREE_IN, {"id": node_id})
+    ]
+    return {
+        **n,
+        "caption": queries.caption(n),
+        "key": queries.domain_key(n),
+        "degrees": sorted(degrees, key=lambda d: (d["count"], d["type"])),
+    }
+
+
+def _validate_expand(type: str | None, dir: str | None) -> None:
+    if dir is not None and dir not in ("out", "in"):
+        raise HTTPException(400, f"invalid direction {dir!r} — expected 'out' or 'in'")
+    if type is not None and not VALID_TYPE.fullmatch(type):
+        raise HTTPException(400, f"invalid edge type {type!r}")
+
+
+def _expand(
+    store: Store, node_id: int, type: str | None, dir: str | None, limit: int, offset: int
+) -> dict:
+    _validate_expand(type, dir)
+
+    # `dir` is "out", "in", or None for undirected.
+    nodes: dict[int, dict] = {}
+    edges: dict[str, dict] = {}
+    total = store.query(queries.expand_count_cypher(type, dir), {"id": node_id})[0]["n"]
+    rows = store.query(
+        queries.expand_cypher(type, dir),
+        {"id": node_id, "limit": limit, "offset": offset},
+    )
+    for row in rows:
+        n = queries.node_out(row["m"])
+        nodes[n["id"]] = n
+        e = queries.rel_out(row["r"])
+        edges[e["id"]] = e
+    return {
+        "nodes": list(nodes.values()),
+        "edges": list(edges.values()),
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+    }
+
+
+def _cypher(store: Store, body: CypherIn) -> dict:
+    # No sanitising: graphdblite's query() refuses writes outside an
+    # explicit write transaction, so the engine is the enforcement point.
+    try:
+        rows = store.query(body.query, body.params)
+    except GraphDBError as e:
+        raise HTTPException(400, {"error": str(e), "type": type(e).__name__})
+    # Clamped at BOTH ends: max_rows is client-controlled, and an
+    # unclamped bottom made `max_rows: 0` return zero rows with
+    # `truncated: true` — a result that says "there was more" and shows
+    # none of it.
+    cap = min(max(body.max_rows, 1), MAX_ROWS)
+    columns = list(rows[0].keys()) if rows else []
+    return {
+        "columns": columns,
+        "rows": [[queries.classify(r[c]) for c in columns] for r in rows[:cap]],
+        "truncated": len(rows) > cap,
+    }
+
+
 def create_app(home: pathlib.Path) -> FastAPI:
     app = FastAPI(title="precedent-ui")
     store = Store(home)
@@ -96,62 +212,19 @@ def create_app(home: pathlib.Path) -> FastAPI:
 
     @app.get("/api/search")
     def search(q: str, limit: int = 50) -> list[dict]:
-        needle = q.strip().lower()
-        if not needle:
-            return []
-        # Scan each label's searchable fields; a node found by several fields
-        # is kept once, at its best rank.
-        best: dict[int, tuple[int, dict]] = {}
-        for label, fields in queries.SEARCH_FIELDS.items():
-            for field in fields:
-                cypher = queries.search_cypher(label, field)
-                for row in store.query(cypher, {"q": needle, "cap": limit * 4}):
-                    node = queries.node_out(row["n"])
-                    r = queries.rank(node, needle) if field == queries.CAPTION_FIELD.get(label) else 3
-                    prior = best.get(node["id"])
-                    if prior is None or r < prior[0]:
-                        best[node["id"]] = (r, node)
+        return _search(store, q, limit)
 
-        degrees = {
-            row["id"]: row["degree"]
-            for row in store.query(queries.DEGREE_FOR_IDS, {"ids": list(best)})
-        } if best else {}
-
-        ordered = sorted(
-            best.values(), key=lambda rn: (rn[0], -degrees.get(rn[1]["id"], 0), rn[1]["id"])
-        )
-        return [
-            {
-                "id": node["id"],
-                "labels": node["labels"],
-                "caption": queries.caption(node),
-                "sub": queries.subtitle(node),
-                "degree": degrees.get(node["id"], 0),
-            }
-            for _, node in ordered[:limit]
-        ]
-
-    @app.get("/api/node/{node_id}")
+    @app.get(
+        "/api/node/{node_id}",
+        responses={404: {"description": "No node with this id (the graph may have been rebuilt)"}},
+    )
     def node(node_id: int) -> dict:
-        rows = store.query(queries.NODE_BY_ID, {"id": node_id})
-        if not rows:
-            raise HTTPException(404, f"no node {node_id} — the graph may have been rebuilt")
-        n = queries.node_out(rows[0]["n"])
-        degrees = [
-            {"type": r["type"], "dir": "out", "count": r["n"]}
-            for r in store.query(queries.DEGREE_OUT, {"id": node_id})
-        ] + [
-            {"type": r["type"], "dir": "in", "count": r["n"]}
-            for r in store.query(queries.DEGREE_IN, {"id": node_id})
-        ]
-        return {
-            **n,
-            "caption": queries.caption(n),
-            "key": queries.domain_key(n),
-            "degrees": sorted(degrees, key=lambda d: (d["count"], d["type"])),
-        }
+        return _node(store, node_id)
 
-    @app.get("/api/expand/{node_id}")
+    @app.get(
+        "/api/expand/{node_id}",
+        responses={400: {"description": "Invalid direction or edge type"}},
+    )
     def expand(
         node_id: int,
         type: str | None = None,
@@ -159,32 +232,7 @@ def create_app(home: pathlib.Path) -> FastAPI:
         limit: int = 50,
         offset: int = 0,
     ) -> dict:
-        # Validate parameters
-        if dir is not None and dir not in ("out", "in"):
-            raise HTTPException(400, f"invalid direction {dir!r} — expected 'out' or 'in'")
-        if type is not None and not VALID_TYPE.fullmatch(type):
-            raise HTTPException(400, f"invalid edge type {type!r}")
-
-        # `dir` is "out", "in", or None for undirected.
-        nodes: dict[int, dict] = {}
-        edges: dict[str, dict] = {}
-        total = store.query(queries.expand_count_cypher(type, dir), {"id": node_id})[0]["n"]
-        rows = store.query(
-            queries.expand_cypher(type, dir),
-            {"id": node_id, "limit": limit, "offset": offset},
-        )
-        for row in rows:
-            n = queries.node_out(row["m"])
-            nodes[n["id"]] = n
-            e = queries.rel_out(row["r"])
-            edges[e["id"]] = e
-        return {
-            "nodes": list(nodes.values()),
-            "edges": list(edges.values()),
-            "total": total,
-            "offset": offset,
-            "limit": limit,
-        }
+        return _expand(store, node_id, type, dir, limit, offset)
 
     @app.post("/api/edges-between")
     def edges_between(body: IdsIn) -> dict:
@@ -194,25 +242,12 @@ def create_app(home: pathlib.Path) -> FastAPI:
         seen = {queries.rel_out(r["r"])["id"]: queries.rel_out(r["r"]) for r in rows}
         return {"edges": list(seen.values())}
 
-    @app.post("/api/cypher")
+    @app.post(
+        "/api/cypher",
+        responses={400: {"description": "The query failed in graphdblite (syntax error or refused write)"}},
+    )
     def cypher(body: CypherIn) -> dict:
-        # No sanitising: graphdblite's query() refuses writes outside an
-        # explicit write transaction, so the engine is the enforcement point.
-        try:
-            rows = store.query(body.query, body.params)
-        except GraphDBError as e:
-            raise HTTPException(400, {"error": str(e), "type": type(e).__name__})
-        # Clamped at BOTH ends: max_rows is client-controlled, and an
-        # unclamped bottom made `max_rows: 0` return zero rows with
-        # `truncated: true` — a result that says "there was more" and shows
-        # none of it.
-        cap = min(max(body.max_rows, 1), MAX_ROWS)
-        columns = list(rows[0].keys()) if rows else []
-        return {
-            "columns": columns,
-            "rows": [[queries.classify(r[c]) for c in columns] for r in rows[:cap]],
-            "truncated": len(rows) > cap,
-        }
+        return _cypher(store, body)
 
     @app.get("/api/stream")
     async def stream() -> StreamingResponse:

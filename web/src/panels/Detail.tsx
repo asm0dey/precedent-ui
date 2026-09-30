@@ -8,7 +8,7 @@ export function Detail({
   onExpand,
   onOpenMenu,
   menuOpen,
-}: {
+}: Readonly<{
   nodeId: number | null;
   // Bumped by App after a graph refresh, so this re-fetches fresh degrees
   // for the still-selected node even though `nodeId` itself didn't change.
@@ -17,7 +17,7 @@ export function Detail({
   onExpand: (type: string, dir: "out" | "in", offset?: number) => void;
   onOpenMenu: (x: number, y: number) => void;
   menuOpen: boolean;
-}) {
+}>) {
   const [n, setN] = useState<NodeDetail | null>(null);
 
   useEffect(() => {

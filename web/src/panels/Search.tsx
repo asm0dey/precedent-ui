@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { search, type Hit } from "../api";
 
-export function Search({ onPick }: { onPick: (h: Hit) => void }) {
+export function Search({ onPick }: Readonly<{ onPick: (h: Hit) => void }>) {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<Hit[]>([]);
   const [error, setError] = useState<string | null>(null);

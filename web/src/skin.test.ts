@@ -77,7 +77,7 @@ describe("clip", () => {
   it("leaves a short label alone and caps a long one at CANVAS_LABEL_MAX", () => {
     expect(clip("bun")).toBe("bun");
     const long = clip("Ship as a GraalVM native musl binary on Alpaquita, non-root");
-    expect(long.length).toBe(CANVAS_LABEL_MAX);
+    expect(long).toHaveLength(CANVAS_LABEL_MAX);
     expect(long.endsWith("…")).toBe(true);
   });
 });

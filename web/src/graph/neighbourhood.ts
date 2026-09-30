@@ -12,19 +12,25 @@
  */
 export type Link = { src: string | number; dst: string | number };
 
+function adjacency(edges: Link[]): Map<string, string[]> {
+  const adj = new Map<string, string[]>();
+  const link = (from: string, to: string) => {
+    const list = adj.get(from);
+    if (list) list.push(to);
+    else adj.set(from, [to]);
+  };
+  for (const e of edges) {
+    link(String(e.src), String(e.dst));
+    link(String(e.dst), String(e.src));
+  }
+  return adj;
+}
+
 export function withinHops(edges: Link[], start: string, depth: number): Set<string> {
   const keep = new Set<string>([start]);
   if (depth <= 0) return keep;
 
-  const adj = new Map<string, string[]>();
-  for (const e of edges) {
-    const a = String(e.src);
-    const b = String(e.dst);
-    if (!adj.has(a)) adj.set(a, []);
-    if (!adj.has(b)) adj.set(b, []);
-    adj.get(a)!.push(b);
-    adj.get(b)!.push(a);
-  }
+  const adj = adjacency(edges);
 
   let frontier = [start];
   for (let hop = 0; hop < depth && frontier.length; hop++) {

@@ -379,7 +379,7 @@
   border-left: 3px solid #e5484d;
   background: var(--bg);
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .warn {
@@ -463,6 +463,8 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 3px;
+  margin: 0;
+  min-width: 0;
 }
 
 .theme-toggle button {

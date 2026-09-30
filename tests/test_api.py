@@ -82,7 +82,8 @@ def test_node_404_for_a_missing_id(client):
 def test_expand_returns_neighbours_and_connecting_edges(client):
     nid = _first_decision_id(client)
     body = client.get(f"/api/expand/{nid}", params={"type": "CHOSE", "dir": "out"}).json()
-    assert body["nodes"] and body["edges"]
+    assert body["nodes"]
+    assert body["edges"]
     assert all(e["type"] == "CHOSE" for e in body["edges"])
     assert all(e["src"] == nid for e in body["edges"])
 
@@ -99,7 +100,8 @@ def test_expand_pages_by_offset(client):
     args = {"type": "REJECTED", "dir": "out", "limit": 1}
     first = client.get(f"/api/expand/{nid}", params=args).json()
     second = client.get(f"/api/expand/{nid}", params={**args, "offset": 1}).json()
-    assert first["nodes"] and second["nodes"], "both pages must be non-empty with 2 edges"
+    assert first["nodes"], "both pages must be non-empty with 2 edges"
+    assert second["nodes"], "both pages must be non-empty with 2 edges"
     assert first["nodes"][0]["id"] != second["nodes"][0]["id"]
 
 
@@ -221,11 +223,13 @@ def test_mtime_events_emits_immediately_then_on_change(store, store_home, tmp_pa
 
     first, second = asyncio.run(asyncio.wait_for(scenario(), timeout=10))
 
-    assert first.startswith("data: ") and first.endswith("\n\n")
+    assert first.startswith("data: ")
+    assert first.endswith("\n\n")
     first_stamp = json.loads(first.removeprefix("data: "))["mtime"]
     assert first_stamp
 
-    assert second.startswith("data: ") and second.endswith("\n\n")
+    assert second.startswith("data: ")
+    assert second.endswith("\n\n")
     second_stamp = json.loads(second.removeprefix("data: "))["mtime"]
     assert second_stamp != first_stamp, "a rewritten journal must produce a new frame"
 
@@ -247,8 +251,9 @@ def test_mtime_events_emits_only_on_change(store):
         gen = mtime_events(store, interval=0.01)
         await anext(gen)  # the immediate first frame
 
+        pending = anext(gen)
         with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(anext(gen), timeout=0.2)
+            await asyncio.wait_for(pending, timeout=0.2)
 
         await gen.aclose()
 
