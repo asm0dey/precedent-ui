@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@react-sigma/core": "^5.0.6",
-    "@react-sigma/layout-forceatlas2": "^5.0.6",
+    "@react-sigma/layout-forceatlas2": "^6.0.0",
     "@react-sigma/minimap": "^5.0.6",
     "graphology": "^0.26.0",
     "graphology-layout-noverlap": "^0.4.2",
