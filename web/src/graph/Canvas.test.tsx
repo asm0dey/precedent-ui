@@ -2,7 +2,6 @@
 import { cleanup, render } from "@testing-library/react";
 import Graph from "graphology";
 import noverlap from "graphology-layout-noverlap";
-import { drawDiscNodeHover } from "sigma/rendering";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HOVER_LABEL_INK, clip, edgePaint, nodePaint, tokens } from "../skin";
 import { Canvas, type CanvasHandlers, type Focus } from "./Canvas";
@@ -14,6 +13,7 @@ import { Canvas, type CanvasHandlers, type Focus } from "./Canvas";
  */
 const h = vi.hoisted(() => ({
   sigma: null as unknown as FakeSigma,
+  options: null as any,
   events: {} as Record<string, (e: any) => void>,
   fa2: null as any,
   start: vi.fn(),
@@ -29,7 +29,10 @@ vi.mock("@react-sigma/core", () => {
   };
   const passThrough = ({ children }: { children?: unknown }) => children ?? null;
   return {
-    SigmaContainer: passThrough,
+    SigmaContainer: ({ options, children }: { options: unknown; children?: unknown }) => {
+      h.options = options;
+      return children ?? null;
+    },
     ControlsContainer: passThrough,
     ZoomControl: () => null,
     FullScreenControl: () => null,
@@ -52,20 +55,19 @@ vi.mock("@react-sigma/layout-forceatlas2", () => {
 
 vi.mock("@react-sigma/minimap", () => ({ MiniMap: () => null }));
 vi.mock("graphology-layout-noverlap", () => ({ default: { assign: vi.fn() } }));
-vi.mock("sigma/rendering", () => ({ drawDiscNodeHover: vi.fn() }));
+vi.mock("sigma/rendering", () => ({ extremityArrow: () => ({ name: "arrow" }) }));
 
 type FakeSigma = ReturnType<typeof fakeSigma>;
 
 /** Viewport space is graph space doubled, so a conversion that was skipped shows. */
 function fakeSigma(graph: Graph) {
-  const settings: Record<string, any> = {};
   const container = document.createElement("div");
   container.getBoundingClientRect = () => ({ left: 100, top: 50 }) as DOMRect;
   return {
-    settings,
     getGraph: () => graph,
-    setSetting: (k: string, v: unknown) => {
-      settings[k] = v;
+    graphState: {} as Record<string, unknown>,
+    setGraphState(state: Record<string, unknown>) {
+      this.graphState = { ...this.graphState, ...state };
     },
     refresh: vi.fn(),
     getContainer: () => container,
@@ -129,10 +131,11 @@ function mount(graph: Graph, overrides: Partial<Props> = {}) {
   };
 }
 
-const nodeReducer = () => h.sigma.settings.nodeReducer as (n: string, d: any) => any;
-const edgeReducer = () => h.sigma.settings.edgeReducer as (e: string, d: any) => any;
-const reduceNode = (g: Graph, n: string) => nodeReducer()(n, g.getNodeAttributes(n));
-const reduceEdge = (g: Graph, e: string) => edgeReducer()(e, g.getEdgeAttributes(e));
+// sigma 4 hands a reducer (key, display data, attributes, state, graph state, graph).
+const reduceNode = (g: Graph, n: string) =>
+  h.options.nodeReducer(n, { label: g.getNodeAttribute(n, "label") }, g.getNodeAttributes(n), {}, h.sigma.graphState, g);
+const reduceEdge = (g: Graph, e: string) =>
+  h.options.edgeReducer(e, {}, g.getEdgeAttributes(e), {}, h.sigma.graphState, g);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -166,13 +169,22 @@ describe("Canvas reducers", () => {
     const g = sampleGraph();
     const { update } = mount(g, { mode: "light" });
     expect(reduceNode(g, "2").color).toBe(tokens("light").labelColor.Project);
-    expect(h.sigma.settings.labelColor).toEqual({ color: tokens("light").text });
+    expect(reduceNode(g, "2").labelColor).toBe(tokens("light").text);
+    const options = h.options;
     update({ mode: "dark" });
+    // The same options object: a new one would make SigmaContainer rebuild sigma.
+    expect(h.options).toBe(options);
     expect(reduceNode(g, "2").color).toBe(tokens("dark").labelColor.Project);
-    expect(h.sigma.settings.labelColor).toEqual({ color: tokens("dark").text });
-    expect(h.sigma.settings.edgeLabelColor).toEqual({ color: tokens("dark").text });
+    expect(reduceNode(g, "2").labelColor).toBe(tokens("dark").text);
+    expect(reduceEdge(g, "e12").labelColor).toBe(tokens("dark").text);
     expect(g.getNodeAttribute("2", "color")).toBeUndefined();
-    expect(h.sigma.refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("sizes nodes in screen pixels, which `separate` relies on", () => {
+    // sigma 4 defaults to graph units: noverlap then spaces discs wrongly and
+    // the settled layout comes out as one tangled blob.
+    mount(sampleGraph());
+    expect(h.options.settings.itemSizesReference).toBe("screen");
   });
 
   it("clips long labels, but not on the hovered node", () => {
@@ -212,12 +224,13 @@ describe("Canvas reducers", () => {
     expect(reduceEdge(g, "e12").color).toBe(edgePaint(t, "IN_PROJECT"));
     expect(reduceEdge(g, "e34").color).toBe(t.verdict.CHOSE);
     expect(reduceEdge(g, "e14").color).toBe(t.warn.regret);
-    expect(reduceEdge(g, "e34").hidden).toBeUndefined();
+    expect(reduceEdge(g, "e34").visibility).toBeUndefined();
+    expect(reduceEdge(g, "e34").head).toBe("arrow");
 
     update({ hovered: "1" });
-    expect(reduceEdge(g, "e12").hidden).toBeUndefined();
-    expect(reduceEdge(g, "e14").hidden).toBeUndefined();
-    expect(reduceEdge(g, "e34").hidden).toBe(true);
+    expect(reduceEdge(g, "e12").visibility).toBeUndefined();
+    expect(reduceEdge(g, "e14").visibility).toBeUndefined();
+    expect(reduceEdge(g, "e34").visibility).toBe("hidden");
     expect(reduceEdge(g, "e34").color).toBe(t.verdict.CHOSE);
   });
 
@@ -228,19 +241,14 @@ describe("Canvas reducers", () => {
     expect(() => reduceNode(g, "2")).not.toThrow();
     expect(reduceNode(g, "2").highlighted).toBeUndefined();
     expect(reduceNode(g, "2").label).toBe("precedent");
-    expect(reduceEdge(g, "e34").hidden).toBeUndefined();
+    expect(reduceEdge(g, "e34").visibility).toBeUndefined();
   });
 
   it("draws the hover label in fixed dark ink whatever the theme", () => {
-    mount(sampleGraph(), { mode: "dark" });
-    const ctx = {} as CanvasRenderingContext2D;
-    const settings = { labelColor: { color: "#fff" }, labelSize: 14 };
-    h.sigma.settings.defaultDrawNodeHover(ctx, { x: 1 }, settings);
-    expect(drawDiscNodeHover).toHaveBeenCalledWith(
-      ctx,
-      { x: 1 },
-      { labelColor: { color: HOVER_LABEL_INK }, labelSize: 14 },
-    );
+    const g = sampleGraph();
+    mount(g, { mode: "dark", hovered: "1" });
+    expect(reduceNode(g, "1").labelColor).toBe(HOVER_LABEL_INK);
+    expect(reduceNode(g, "2").labelColor).toBe(tokens("dark").text);
   });
 });
 

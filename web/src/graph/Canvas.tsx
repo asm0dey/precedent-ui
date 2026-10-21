@@ -14,60 +14,72 @@ import {
 } from "@react-sigma/layout-forceatlas2";
 import { MiniMap } from "@react-sigma/minimap";
 import Graph from "graphology";
+import type { Attributes } from "graphology-types";
 import noverlap from "graphology-layout-noverlap";
 import type Sigma from "sigma";
 import type { Coordinates } from "sigma/types";
 import { useEffect, useRef } from "react";
-import { drawDiscNodeHover } from "sigma/rendering";
+import { extremityArrow } from "sigma/rendering";
+import type { SigmaOptions } from "sigma/types";
 import { positions, settled } from "./settle";
 import { HOVER_LABEL_INK, clip, edgePaint, nodePaint, tokens, type Mode } from "../skin";
 
+/** What the reducers read beyond the graph: sigma custom graph state, so a
+ * theme flip or a hover re-runs them without rebuilding sigma. */
+type View = { mode: Mode; hovered: string | null };
+
 /** Theme, status and hover all live in the reducers, so neither a theme flip nor
- * the precedent skin ever rewrites graph attributes — they only read them. */
-function Reducers({ mode, hovered }: { mode: Mode; hovered: string | null }) {
-  const sigma = useSigma();
-  useEffect(() => {
+ * the precedent skin ever rewrites graph attributes — they only read them.
+ *
+ * A module constant on purpose: SigmaContainer rebuilds sigma whenever its
+ * `options` change, and sigma 4 takes reducers only at construction. */
+const OPTIONS: SigmaOptions<Attributes, Attributes, Attributes, {}, {}, View> = {
+  primitives: { edges: { extremities: [extremityArrow()] } },
+  settings: {
+    allowInvalidContainer: true,
+    labelDensity: 0.2,
+    labelGridCellSize: 200,
+    // sigma 4 defaults to "positions" (sizes in graph units). Node sizes here are
+    // screen pixels, and `separate` relies on that.
+    itemSizesReference: "screen",
+  },
+  customGraphState: { mode: "light", hovered: null },
+  nodeReducer: (node, data, attrs, _state, { mode, hovered }, graph) => {
     const t = tokens(mode);
+    const base = {
+      label: node === hovered ? data.label : data.label && clip(data.label),
+      // sigma's default label colour is #666, unreadable on the dark canvas;
+      // the hovered label sits on sigma's white backdrop, so it takes dark ink.
+      labelColor: node === hovered ? HOVER_LABEL_INK : t.text,
+      // Status is visual: `superseded` fades, `regretted` turns the regret
+      // warning colour. Both come from the node's own `status` attribute.
+      color: nodePaint(t, attrs.nodeLabel as string, attrs.status as string),
+      zIndex: attrs.status === "superseded" ? 0 : 1,
+    };
+    // `hovered` can outlive the node it names: sigma emits no `leaveNode`
+    // when a node is removed, and hiding a hovered node (the context menu
+    // swallows the mousemove) would otherwise raise NotFoundGraphError here
+    // once per remaining node.
+    if (!hovered || !graph.hasNode(hovered)) return base;
+    if (node === hovered || graph.areNeighbors(hovered, node)) return { ...base, highlighted: true };
+    return { ...base, color: t.edge, label: "" };
+  },
+  edgeReducer: (edge, _data, attrs, _state, { mode, hovered }, graph) => {
+    const t = tokens(mode);
+    // DIVERGES_FROM and REGRETS are drawn as warnings, not read from a panel.
+    const base = { head: "arrow", labelColor: t.text, color: edgePaint(t, attrs.edgeType as string) };
+    if (!hovered || !graph.hasNode(hovered)) return base;
+    return graph.extremities(edge).includes(hovered)
+      ? base
+      : { ...base, visibility: "hidden" as const };
+  },
+};
 
-    // Label rendering is sigma's, not the reducers': it paints node and edge
-    // labels with its own default of #000, which is unreadable on the dark
-    // canvas. Set it here so it flips with the theme like everything else.
-    sigma.setSetting("labelColor", { color: t.text });
-    sigma.setSetting("edgeLabelColor", { color: t.text });
-    sigma.setSetting("defaultDrawNodeHover", (context, data, settings) =>
-      drawDiscNodeHover(context, data, {
-        ...settings,
-        labelColor: { color: HOVER_LABEL_INK },
-      }),
-    );
-
-    sigma.setSetting("nodeReducer", (node, data) => {
-      const base = {
-        ...data,
-        label: node === hovered ? data.label : data.label && clip(data.label),
-        // Status is visual: `superseded` fades, `regretted` turns the regret
-        // warning colour. Both come from the node's own `status` attribute.
-        color: nodePaint(t, data.nodeLabel as string, data.status as string),
-        zIndex: data.status === "superseded" ? 0 : 1,
-      };
-      // `hovered` can outlive the node it names: sigma emits no `leaveNode`
-      // when a node is removed, and hiding a hovered node (the context menu
-      // swallows the mousemove) would otherwise raise NotFoundGraphError here
-      // once per remaining node.
-      const graph = sigma.getGraph();
-      if (!hovered || !graph.hasNode(hovered)) return base;
-      const neighbours = graph.neighbors(hovered);
-      if (node === hovered || neighbours.includes(node)) return { ...base, highlighted: true };
-      return { ...base, color: t.edge, label: "" };
-    });
-    sigma.setSetting("edgeReducer", (edge, data) => {
-      // DIVERGES_FROM and REGRETS are drawn as warnings, not read from a panel.
-      const base = { ...data, color: edgePaint(t, data.edgeType as string) };
-      const graph = sigma.getGraph();
-      if (!hovered || !graph.hasNode(hovered)) return base;
-      return graph.extremities(edge).includes(hovered) ? base : { ...base, hidden: true };
-    });
-    sigma.refresh();
+/** Hands the theme and hover to the reducers; setting it re-runs them. */
+function Repaint({ mode, hovered }: View) {
+  const sigma = useSigma<Attributes, Attributes, Attributes, {}, {}, View>();
+  useEffect(() => {
+    sigma.setGraphState({ mode, hovered });
   }, [sigma, mode, hovered]);
   return null;
 }
@@ -312,9 +324,9 @@ export function Canvas({
     <SigmaContainer
       graph={graph}
       style={{ height: "100%", width: "100%", background: t.bg }}
-      settings={{ allowInvalidContainer: true, defaultEdgeType: "arrow", labelDensity: 0.2, labelGridCellSize: 200 }}
+      options={OPTIONS}
     >
-      <Reducers mode={mode} hovered={hovered} />
+      <Repaint mode={mode} hovered={hovered} />
       <AutoLayout version={version} focus={focus} fit={fit} />
       <Events
         onSelect={onSelect}
