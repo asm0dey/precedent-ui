@@ -16,7 +16,8 @@ export function mergeInto(graph: Graph, nodes: GNode[], edges: GEdge[], mode: Mo
       size: 8,
       color: t.labelColor[n.labels[0]] ?? t.edge,
       nodeLabel: n.labels[0],
-      status: (n.props.status as string) ?? "active",
+      // A retired Principle has no `status`, only a `retired` date (precedent 0.9).
+      status: (n.props.status as string) ?? (n.props.retired ? "retired" : "active"),
     };
     // A starting position is supplied ONLY for a node that is not here yet.
     // graphology's mergeNode assigns the given attributes onto an existing

@@ -13,7 +13,7 @@ const LIGHT = {
     Principle: "#c2410c",
     Lesson: "#b91c1c",
   } as Record<string, string>,
-  statusAlpha: { active: 1, superseded: 0.35, regretted: 0.8 } as Record<string, number>,
+  statusAlpha: { active: 1, superseded: 0.35, retired: 0.35, regretted: 0.8 } as Record<string, number>,
   // `conflict` is deliberately unused on the canvas: a CONFLICT (a live
   // Decision CHOSE an option another live Decision REJECTED) is not a property
   // of one node or one edge, so it cannot be drawn from what the canvas holds.
@@ -43,7 +43,7 @@ const DARK: typeof LIGHT = {
   } as Record<string, string>,
   // superseded needs a *higher* alpha on a dark ground to read as faded
   // rather than as invisible.
-  statusAlpha: { active: 1, superseded: 0.5, regretted: 0.85 } as Record<string, number>,
+  statusAlpha: { active: 1, superseded: 0.5, retired: 0.5, regretted: 0.85 } as Record<string, number>,
   warn: { conflict: "#f87171", divergence: "#fbbf24", regret: "#f06a6a" },
   verdict: { CHOSE: "#5bd39a", REJECTED: "#f08a4b" } as Record<string, string>,
 };

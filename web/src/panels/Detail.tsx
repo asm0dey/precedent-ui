@@ -42,7 +42,7 @@ export function Detail({
 
   const label = n.labels[0];
   const p = n.props as Record<string, string>;
-  const superseded = p.status === "superseded";
+  const superseded = p.status === "superseded" || Boolean(p.retired);
 
   return (
     <div className={`detail${superseded ? " superseded" : ""}`}>
@@ -89,6 +89,12 @@ export function Detail({
             <dd>{p.created}</dd>
           </dl>
         </>
+      )}
+      {label === "Principle" && p.retired && (
+        <section className="despite">
+          <h3>retired {p.retired}</h3>
+          <p>{p.retired_because}</p>
+        </section>
       )}
       <section className="expand">
         <h3>expand</h3>
