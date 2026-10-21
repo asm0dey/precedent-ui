@@ -29,6 +29,13 @@ RETURN o AS option, projects
 ORDER BY projects DESC`,
   },
   {
+    // A topicless principle has no edges, so search is the only other way in.
+    name: "principles (global ones have no topic)",
+    cypher: `MATCH (pr:Principle)
+RETURN pr AS principle, pr.retired AS retired
+ORDER BY pr.created`,
+  },
+  {
     name: "supersession chains",
     cypher: `MATCH (new:Decision)-[r:SUPERSEDES]->(old:Decision)
 RETURN new AS replacement, r AS r, old AS superseded`,

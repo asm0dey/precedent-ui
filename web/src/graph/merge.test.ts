@@ -48,6 +48,12 @@ describe("mergeInto", () => {
     expect(g.getNodeAttribute("1", "x")).toBe(1);
   });
 
+  it("marks a retired Principle, which carries no status, as retired", () => {
+    const g = new Graph();
+    mergeInto(g, [{ id: 5, labels: ["Principle"], props: { statement: "x", retired: "2026-10-21" } }], [], "light");
+    expect(g.getNodeAttribute("5", "status")).toBe("retired");
+  });
+
   it("gives a brand-new node a starting position", () => {
     const g = new Graph();
     mergeInto(g, [node(9)], [], "light");
