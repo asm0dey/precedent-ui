@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@react-sigma/core": "^5.0.6",
+    "@react-sigma/core": "^6.0.0",
     "@react-sigma/layout-forceatlas2": "^5.0.6",
     "@react-sigma/minimap": "^5.0.6",
     "graphology": "^0.26.0",
