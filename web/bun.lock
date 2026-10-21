@@ -7,7 +7,7 @@
       "dependencies": {
         "@react-sigma/core": "^5.0.6",
         "@react-sigma/layout-forceatlas2": "^5.0.6",
-        "@react-sigma/minimap": "^5.0.6",
+        "@react-sigma/minimap": "^6.0.0",
         "graphology": "^0.26.0",
         "graphology-layout-noverlap": "^0.4.2",
         "react": "^19.2.8",
@@ -117,7 +117,7 @@
 
     "@react-sigma/layout-forceatlas2": ["@react-sigma/layout-forceatlas2@5.0.6", "", { "dependencies": { "@react-sigma/layout-core": "^5.0.6" }, "peerDependencies": { "graphology-layout-forceatlas2": "^0.10.1" } }, "sha512-BYd+6iDMRrpNUxm7xWhtiLLn7sksoH6xHLXvhbDOtbCIVUEceS57Mxbe4NGZs5zR//+YBIGAbwxQKIk3KrhnMQ=="],
 
-    "@react-sigma/minimap": ["@react-sigma/minimap@5.0.6", "", { "dependencies": { "@react-sigma/core": "^5.0.6" } }, "sha512-x+k3wXiaO1spPYdb/Hty/+s7plVMKUL0EXbsDNCcKd5uEnxbg5Ycn5IfxdLq3RU2i8HoMZKvEezWf7KrDprnXQ=="],
+    "@react-sigma/minimap": ["@react-sigma/minimap@6.0.0", "", { "dependencies": { "@react-sigma/core": "^6.0.0" } }, "sha512-9t5Yja2lhAUCqHtIik8HmboykNM+2vzukBU6LRS0C8yCDRmlcTjV/Ey01a8cxLiyextW30xYSPeLVqxEdpQrtA=="],
 
     "@rolldown/binding-android-arm-eabi": ["@rolldown/binding-android-arm-eabi@1.2.8", "", { "os": "android", "cpu": "arm" }, "sha512-tN5aztYkKCte4i5SIrrz5yK/HMjEuCqCSCJa418jOV8tZ1cBY3YF2otxB1ktPxzsLA1BeTqwapK0bfjxNvHJVw=="],
 
@@ -396,6 +396,8 @@
     "xmlchars": ["xmlchars@2.2.0", "", {}, "sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw=="],
 
     "@babel/code-frame/js-tokens": ["js-tokens@4.0.0", "", {}, "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="],
+
+    "@react-sigma/minimap/@react-sigma/core": ["@react-sigma/core@6.0.0", "", { "peerDependencies": { "graphology": "^0.26.0", "react": "^18.0.0 || ^19.0.0", "sigma": "^4.0.0" } }, "sha512-0PGdB2b4bjX/FIHshhCLovIQaqhLpb6LccghmxDRaX99R1w3oX3kyPqHeVMFDK21pfreu6rusvciTSjsCbTzew=="],
 
     "data-urls/whatwg-url": ["whatwg-url@16.0.1", "", { "dependencies": { "@exodus/bytes": "^1.11.0", "tr46": "^6.0.0", "webidl-conversions": "^8.0.1" } }, "sha512-1to4zXBxmXHV3IiSSEInrreIlu02vUOvrhxJJH5vcxYTBDAx51cqZiKdyTxlecdKNSjj8EcxGBxNf6Vg+945gw=="],
   }
