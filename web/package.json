@@ -12,13 +12,13 @@
   },
   "dependencies": {
     "@react-sigma/core": "^6.0.0",
-    "@react-sigma/layout-forceatlas2": "^5.0.6",
-    "@react-sigma/minimap": "^5.0.6",
+    "@react-sigma/layout-forceatlas2": "^6.0.0",
+    "@react-sigma/minimap": "^6.0.0",
     "graphology": "^0.26.0",
     "graphology-layout-noverlap": "^0.4.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "sigma": "^3.0.3"
+    "sigma": "^4.0.3"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.3",
@@ -28,6 +28,7 @@
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^5.0.3",
+    "graphology-types": "^0.24.8",
     "jsdom": "^30.1.1",
     "oxlint": "^1.81.0",
     "typescript": "^7.0.2",
