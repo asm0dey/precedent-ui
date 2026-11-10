@@ -18,7 +18,7 @@
     "graphology-layout-noverlap": "^0.4.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "sigma": "^3.0.3"
+    "sigma": "^4.0.0"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.3",
